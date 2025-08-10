@@ -1,7 +1,7 @@
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
 local window = DrRayLibrary:Load("Sherya Script", "Default")
 
-local Killing = window:Tab("Killer")
+local Killing = DrRayLibrary.newTab("Killer", "ImageIdHere")
 
 -- Pet Selection
 local dropdown = Killing:NewDropdown("Select Pet", "Select your pet", {"Wild Wizard", "Mighty Monster"}, function(selected)
