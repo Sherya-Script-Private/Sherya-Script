@@ -890,4 +890,181 @@ Killing:Textbox("Kill Specific Player", "Enter player name", function(text)
     if text and text ~= "" then
         local player = findPlayerByName(text)
         if player then
-            _
+            _G.targetPlayer = player
+        else
+            _G.targetPlayer = nil
+        end
+    else
+        _G.targetPlayer = nil
+    end
+end)
+
+-- Kill Player Toggle
+Killing:Toggle("Kill Player", false, function(bool)
+    _G.killPlayerEnabled = bool
+
+    if bool then
+        if not _G.killPlayerConnection then
+            local RunService = game:GetService("RunService")
+
+            _G.killPlayerConnection = RunService.Heartbeat:Connect(function()
+                if _G.killPlayerEnabled and _G.targetPlayer and isPlayerAlive(_G.targetPlayer) then
+                    killPlayer(_G.targetPlayer)
+                end
+            end)
+        end
+    else
+        if _G.killPlayerConnection then
+            _G.killPlayerConnection:Disconnect()
+            _G.killPlayerConnection = nil
+        end
+    end
+end)
+
+-- Spectate functionality
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local spectatingPlayer = nil
+local spectateConnection = nil
+local spectateName = ""
+
+local function findPlayerByPartialName(name)
+    if not name or name == "" then return nil end
+    name = name:lower()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr.Name:lower():find(name, 1, true) or plr.DisplayName:lower():find(name, 1, true) then
+            return plr
+        end
+    end
+    return nil
+end
+
+local function startSpectating(player)
+    if not player or not player.Character then return end
+    local humanoid = player.Character:FindFirstChildWhichIsA("Humanoid")
+    if not humanoid then return end
+
+    spectatingPlayer = player
+    workspace.CurrentCamera.CameraSubject = humanoid
+
+    if spectateConnection then
+        spectateConnection:Disconnect()
+        spectateConnection = nil
+    end
+    spectateConnection = player.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        if spectatingPlayer == player then
+            local hum = char:FindFirstChildWhichIsA("Humanoid")
+            if hum then
+                workspace.CurrentCamera.CameraSubject = hum
+            end
+        end
+    end)
+end
+
+local function stopSpectating()
+    spectatingPlayer = nil
+    if spectateConnection then
+        spectateConnection:Disconnect()
+        spectateConnection = nil
+    end
+end
+
+-- Spectate Player TextBox
+Killing:Textbox("Player to Spectate", "Enter player name", function(text)
+    spectateName = text
+end)
+
+-- Spectate Toggle
+Killing:Toggle("Spectate Player", false, function(enabled)
+    if enabled then
+        local player = findPlayerByPartialName(spectateName)
+        if player then
+            startSpectating(player)
+        else
+            warn("Jugador no encontrado: " .. tostring(spectateName))
+        end
+    else
+        stopSpectating()
+    end
+end)
+
+-- Maintain spectate when respawning
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    if spectateName ~= "" and spectatingPlayer then
+        local player = findPlayerByPartialName(spectateName)
+        if player then
+            startSpectating(player)
+        else
+            stopSpectating()
+        end
+    end
+end)
+
+-- Status Labels
+Killing:Label("═══════════════════════")
+Killing:Label("WHITELIST STATUS:")
+
+local whitelistLabel = Killing:Label("None")
+local targetLabel = Killing:Label("Target: None")
+
+-- Update functions for labels
+local function updateWhitelistLabel()
+    if not _G.whitelistedPlayers or #_G.whitelistedPlayers == 0 then
+        whitelistLabel.Text = "Whitelisted: None"
+        return
+    end
+
+    local displayPlayers = {}
+    for _, playerInfo in ipairs(_G.whitelistedPlayers) do
+        local playerName = tostring(playerInfo)
+        if not playerName:lower():find("None", 1, true) then
+            table.insert(displayPlayers, playerName)
+        end
+    end
+
+    if #displayPlayers == 0 then
+        whitelistLabel.Text = "Whitelisted: None"
+    else
+        local displayText = "Whitelisted: "
+        for i, playerName in ipairs(displayPlayers) do
+            if i > 1 then displayText = displayText .. ", " end
+            displayText = displayText .. playerName
+            if #displayText > 50 then -- Limit text length
+                displayText = displayText .. "..."
+                break
+            end
+        end
+        whitelistLabel.Text = displayText
+    end
+end
+
+local function updateTargetLabel()
+    if not _G.targetPlayer or _G.targetPlayer == "" then
+        targetLabel.Text = "Target: None"
+    else
+        local targetName = typeof(_G.targetPlayer) == "Instance" 
+            and (_G.targetPlayer.Name .. " (" .. _G.targetPlayer.DisplayName .. ")")
+            or tostring(_G.targetPlayer)
+        targetLabel.Text = "Target: " .. targetName
+    end
+end
+
+-- Initialize labels
+updateWhitelistLabel()
+updateTargetLabel()
+
+-- Update labels periodically
+spawn(function()
+    while true do
+        updateWhitelistLabel()
+        updateTargetLabel()
+        task.wait(2) -- Update every 2 seconds
+    end
+end)
+
+-- Additional UI separator
+Killing:Label("═══════════════════════")
+Killing:Label("Script by MissSherya")
