@@ -1,10 +1,10 @@
 local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
 local window = DrRayLibrary:Load("Sherya Script", "Default")
 
-local Killing = window:Tab("Killer", "rbxasset://textures/ui/GuiImagePlaceholder.png")
+local Killing = window:Tab("Killer")
 
 -- Pet Selection
-local dropdown = Killing:Dropdown("Select Pet", {"Wild Wizard", "Mighty Monster"}, function(selected)
+local dropdown = Killing:NewDropdown("Select Pet", "Select your pet", {"Wild Wizard", "Mighty Monster"}, function(selected)
     local petsFolder = game.Players.LocalPlayer.petsFolder
     for _, folder in pairs(petsFolder:GetChildren()) do
         if folder:IsA("Folder") then
@@ -34,7 +34,7 @@ local dropdown = Killing:Dropdown("Select Pet", {"Wild Wizard", "Mighty Monster"
 end)
 
 -- Remove Attack Animations
-Killing:Button("Remove Attack Animations", function()
+Killing:NewButton("Remove Attack Animations", function()
     local blockedAnimations = {
         ["rbxassetid://3638729053"] = true,
         ["rbxassetid://3638767427"] = true,
@@ -194,7 +194,7 @@ Killing:Button("Remove Attack Animations", function()
 end)
 
 -- Restore Punch Animation
-Killing:Button("Restore Punch Animation", function()
+Killing:NewButton("Restore Punch Animation", function()
     if _G.AnimBlockConnection then
         _G.AnimBlockConnection:Disconnect()
         _G.AnimBlockConnection = nil
@@ -230,7 +230,7 @@ if not table.find(_G.whitelistedPlayers, "MissSherya") then
 end
 
 -- Whitelist TextBox
-Killing:Textbox("Whitelist Player", "Enter player name", function(text)
+Killing:NewTextBox("Whitelist Player", "Enter player name", true, function(text)
     if text and text ~= "" then
         local textLower = text:lower()
 
@@ -287,7 +287,7 @@ function isWhitelisted(player)
 end
 
 -- Clear Whitelist
-Killing:Button("Clear Whitelist", function()
+Killing:NewButton("Clear Whitelist", function()
     _G.whitelistedPlayers = {}
 
     if not table.find(_G.whitelistedPlayers, "MissSherya") then
@@ -296,7 +296,7 @@ Killing:Button("Clear Whitelist", function()
 end)
 
 -- Whitelist Friends Toggle
-Killing:Toggle("Whitelist Friends", false, function(bool)
+Killing:NewToggle("Whitelist Friends", false, function(bool)
     _G.whitelistFriends = bool
 
     if bool then
@@ -389,7 +389,7 @@ local function isWhitelistedKill(player)
 end
 
 -- Auto Kill Everyone Toggle
-Killing:Toggle("Auto Kill Everyone", false, function(bool)
+Killing:NewToggle("Auto Kill Everyone", false, function(bool)
     _G.killAll = bool
 
     if bool then
@@ -559,17 +559,17 @@ function equipTool(toolName)
 end
 
 -- Good Karma Kill Toggle
-Killing:Toggle("Good Karma Kill", false, function(state)
+Killing:NewToggle("Good Karma Kill", false, function(state)
     evilKarmaKill(state)
 end)
 
 -- Evil Karma Kill Toggle
-Killing:Toggle("Evil Karma Kill", false, function(state)
+Killing:NewToggle("Evil Karma Kill", false, function(state)
     goodKarmaKill(state)
 end)
 
 -- Punch Death Toggle (All Active)
-Killing:Toggle("Punch Death (Egg Obligatorio)", false, function(value)
+Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
     allActive = value
 
     local Players = game:GetService("Players")
@@ -837,7 +837,7 @@ Killing:Toggle("Punch Death (Egg Obligatorio)", false, function(value)
 end)
 
 -- Death Ring Range TextBox
-Killing:Textbox("Death Ring Range", "1-140", function(text)
+Killing:NewTextBox("Death Ring Range", "1-140", true, function(text)
     local range = tonumber(text)
     if range then
         range = math.clamp(range, 1, 140)
@@ -846,7 +846,7 @@ Killing:Textbox("Death Ring Range", "1-140", function(text)
 end)
 
 -- Death Ring Toggle
-Killing:Toggle("Death Ring", false, function(bool)
+Killing:NewToggle("Death Ring", false, function(bool)
     _G.deathRingEnabled = bool
 
     if bool then
@@ -886,7 +886,7 @@ Killing:Toggle("Death Ring", false, function(bool)
 end)
 
 -- Kill Specific Player TextBox
-Killing:Textbox("Kill Specific Player", "Enter player name", function(text)
+Killing:NewTextBox("Kill Specific Player", "Enter player name", true, function(text)
     if text and text ~= "" then
         local player = findPlayerByName(text)
         if player then
@@ -900,7 +900,7 @@ Killing:Textbox("Kill Specific Player", "Enter player name", function(text)
 end)
 
 -- Kill Player Toggle
-Killing:Toggle("Kill Player", false, function(bool)
+Killing:NewToggle("Kill Player", false, function(bool)
     _G.killPlayerEnabled = bool
 
     if bool then
@@ -972,12 +972,12 @@ local function stopSpectating()
 end
 
 -- Spectate Player TextBox
-Killing:Textbox("Player to Spectate", "Enter player name", function(text)
+Killing:NewTextBox("Player to Spectate", "Enter player name", true, function(text)
     spectateName = text
 end)
 
 -- Spectate Toggle
-Killing:Toggle("Spectate Player", false, function(enabled)
+Killing:NewToggle("Spectate Player", false, function(enabled)
     if enabled then
         local player = findPlayerByPartialName(spectateName)
         if player then
@@ -1004,16 +1004,16 @@ LocalPlayer.CharacterAdded:Connect(function(char)
 end)
 
 -- Status Labels
-Killing:Label("═══════════════════════")
-Killing:Label("WHITELIST STATUS:")
+Killing:NewLabel("═══════════════════════")
+Killing:NewLabel("WHITELIST STATUS:")
 
-local whitelistLabel = Killing:Label("None")
-local targetLabel = Killing:Label("Target: None")
+local whitelistLabel = Killing:NewLabel("None")
+local targetLabel = Killing:NewLabel("Target: None")
 
 -- Update functions for labels
 local function updateWhitelistLabel()
     if not _G.whitelistedPlayers or #_G.whitelistedPlayers == 0 then
-        whitelistLabel.Text = "Whitelisted: None"
+        whitelistLabel:Set("Whitelisted: None")
         return
     end
 
@@ -1026,7 +1026,7 @@ local function updateWhitelistLabel()
     end
 
     if #displayPlayers == 0 then
-        whitelistLabel.Text = "Whitelisted: None"
+        whitelistLabel:Set("Whitelisted: None")
     else
         local displayText = "Whitelisted: "
         for i, playerName in ipairs(displayPlayers) do
@@ -1037,18 +1037,18 @@ local function updateWhitelistLabel()
                 break
             end
         end
-        whitelistLabel.Text = displayText
+        whitelistLabel:Set(displayText)
     end
 end
 
 local function updateTargetLabel()
     if not _G.targetPlayer or _G.targetPlayer == "" then
-        targetLabel.Text = "Target: None"
+        targetLabel:Set("Target: None")
     else
         local targetName = typeof(_G.targetPlayer) == "Instance" 
             and (_G.targetPlayer.Name .. " (" .. _G.targetPlayer.DisplayName .. ")")
             or tostring(_G.targetPlayer)
-        targetLabel.Text = "Target: " .. targetName
+        targetLabel:Set("Target: " .. targetName)
     end
 end
 
@@ -1066,5 +1066,5 @@ spawn(function()
 end)
 
 -- Additional UI separator
-Killing:Label("═══════════════════════")
-Killing:Label("Script by MissSherya")
+Killing:NewLabel("═══════════════════════")
+Killing:NewLabel("Script by MissSherya")
