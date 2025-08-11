@@ -1,10 +1,18 @@
-local DrRayLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DrRay-UI-Library/main/DrRay.lua"))()
-local window = DrRayLibrary:Load("Sherya Script", "Default")
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/memejames/elerium-v2-ui-library//main/Library", true))()
+local window = library:AddWindow("Sherya Script", {
+    main_color = Color3.fromRGB(200, 0, 255),
+    min_size = Vector2.new(660, 660),
+    can_resize = false,
+})
 
-local Killing = DrRayLibrary.newTab("Killer", "ImageIdHere")
+local Killing = window:AddTab("Killer")
 
--- Pet Selection
-local dropdown = Killing:NewDropdown("Select Pet", "Select your pet", {"Wild Wizard", "Mighty Monster"}, function(selected)
+local titleLabel = Killing:AddLabel("Killing")
+titleLabel.TextSize = 24
+titleLabel.Font = Enum.Font.Merriweather 
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local dropdown = Killing:AddDropdown("Select Pet", function(text)
     local petsFolder = game.Players.LocalPlayer.petsFolder
     for _, folder in pairs(petsFolder:GetChildren()) do
         if folder:IsA("Folder") then
@@ -15,7 +23,7 @@ local dropdown = Killing:NewDropdown("Select Pet", "Select your pet", {"Wild Wiz
     end
     task.wait(0.2)
 
-    local petName = selected
+    local petName = text
     local petsToEquip = {}
 
     for _, pet in pairs(game.Players.LocalPlayer.petsFolder.Unique:GetChildren()) do
@@ -33,8 +41,10 @@ local dropdown = Killing:NewDropdown("Select Pet", "Select your pet", {"Wild Wiz
     end
 end)
 
--- Remove Attack Animations
-Killing:NewButton("Remove Attack Animations", function()
+local Wild_Wizard = dropdown:Add("Wild Wizard")
+local Mighty_Monster = dropdown:Add("Mighty Monster")
+
+local button = Killing:AddButton("Remove Attack Animations", function()
     local blockedAnimations = {
         ["rbxassetid://3638729053"] = true,
         ["rbxassetid://3638767427"] = true,
@@ -193,8 +203,7 @@ Killing:NewButton("Remove Attack Animations", function()
     end
 end)
 
--- Restore Punch Animation
-Killing:NewButton("Restore Punch Animation", function()
+local restoreButton = Killing:AddButton("Restore Punch Animation", function()
     if _G.AnimBlockConnection then
         _G.AnimBlockConnection:Disconnect()
         _G.AnimBlockConnection = nil
@@ -223,14 +232,12 @@ Killing:NewButton("Restore Punch Animation", function()
     end
 end)
 
--- Initialize whitelist
 _G.whitelistedPlayers = _G.whitelistedPlayers or {}
 if not table.find(_G.whitelistedPlayers, "MissSherya") then
     table.insert(_G.whitelistedPlayers, "MissSherya")
 end
 
--- Whitelist TextBox
-Killing:NewTextBox("Whitelist Player", "Enter player name", true, function(text)
+Killing:AddTextBox("Whitelist", function(text)
     if text and text ~= "" then
         local textLower = text:lower()
 
@@ -260,7 +267,6 @@ Killing:NewTextBox("Whitelist Player", "Enter player name", true, function(text)
     end
 end)
 
--- Whitelist functions
 function isWhitelisted(player)
     if typeof(player) == "Instance" and player:IsA("Player") and player.Name:lower() == "misssherya" then
         return true
@@ -286,8 +292,12 @@ function isWhitelisted(player)
     return false
 end
 
--- Clear Whitelist
-Killing:NewButton("Clear Whitelist", function()
+_G.whitelistedPlayers = _G.whitelistedPlayers or {}
+if not table.find(_G.whitelistedPlayers, "MissSherya") then
+    table.insert(_G.whitelistedPlayers, "MissSherya")
+end
+
+Killing:AddButton("Clear Whitelist", function()
     _G.whitelistedPlayers = {}
 
     if not table.find(_G.whitelistedPlayers, "MissSherya") then
@@ -295,8 +305,7 @@ Killing:NewButton("Clear Whitelist", function()
     end
 end)
 
--- Whitelist Friends Toggle
-Killing:NewToggle("Whitelist Friends", false, function(bool)
+local switch = Killing:AddSwitch("Whitelist Friends", function(bool)
     _G.whitelistFriends = bool
 
     if bool then
@@ -320,7 +329,8 @@ Killing:NewToggle("Whitelist Friends", false, function(bool)
     end
 end)
 
--- Player added event for friend whitelisting
+switch:Set(false)
+
 game.Players.PlayerAdded:Connect(function(player)
     if _G.whitelistFriends and player:IsFriendsWith(game.Players.LocalPlayer.UserId) then
         local playerName = player.Name
@@ -339,7 +349,7 @@ game.Players.PlayerAdded:Connect(function(player)
     end
 end)
 
--- Utility functions
+_G.whitelistedPlayers = _G.whitelistedPlayers or {}
 local function checkCharacter()
     if not game.Players.LocalPlayer.Character then
         repeat
@@ -379,7 +389,7 @@ local function killPlayer(target)
     end
 end
 
-local function isWhitelistedKill(player)
+local function isWhitelisted(player)
     for _, whitelistedInfo in ipairs(_G.whitelistedPlayers) do
         if whitelistedInfo:find(player.Name, 1, true) then
             return true
@@ -388,8 +398,7 @@ local function isWhitelistedKill(player)
     return false
 end
 
--- Auto Kill Everyone Toggle
-Killing:NewToggle("Auto Kill Everyone", false, function(bool)
+local switch = Killing:AddSwitch("Auto Kill Everyone", function(bool)
     _G.killAll = bool
 
     if bool then
@@ -399,7 +408,7 @@ Killing:NewToggle("Auto Kill Everyone", false, function(bool)
             _G.killAllConnection = RunService.Heartbeat:Connect(function()
                 if _G.killAll then
                     for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-                        if player ~= game.Players.LocalPlayer and not isWhitelistedKill(player) then
+                        if player ~= game.Players.LocalPlayer and not isWhitelisted(player) then
                             killPlayer(player)
                         end
                     end
@@ -413,8 +422,8 @@ Killing:NewToggle("Auto Kill Everyone", false, function(bool)
         end
     end
 end)
+switch:Set(false)
 
--- Character events for kill all
 game:GetService("Players").LocalPlayer.CharacterRemoving:Connect(function()
     if _G.killAllConnection then
         _G.killAllConnection:Disconnect()
@@ -429,7 +438,7 @@ game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
         _G.killAllConnection = RunService.Heartbeat:Connect(function()
             if _G.killAll then
                 for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-                    if player ~= game.Players.LocalPlayer and not isWhitelistedKill(player) then
+                    if player ~= game.Players.LocalPlayer and not isWhitelisted(player) then
                         killPlayer(player)
                     end
                 end
@@ -438,11 +447,11 @@ game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
--- Initialize variables for karma killing
 _G.deathRingEnabled = false
 _G.deathRingRange = 20
 _G.targetPlayer = nil
 _G.killPlayerEnabled = false
+_G.whitelistedPlayers = _G.whitelistedPlayers or {}
 
 local function findPlayerByName(name)
     if not name or name == "" then return nil end
@@ -456,25 +465,31 @@ local function findPlayerByName(name)
     return nil
 end
 
--- Karma Kill functions
+Killing:AddSwitch("GoodKarmaKill", function(state)
+    evilKarmaKill(state)
+    pcall(function()
+        Library:Notify("Good Karma Kill " .. (state and "Enabled" or "Disabled"), 2)
+    end)
+end)
+
 function evilKarmaKill(state)
     getgenv().killEvil = state
     if state then
         equipTool("Punch")
         task.spawn(function()
             while getgenv().killEvil do
-                local character = game.Players.LocalPlayer.Character
+                local character = LocalPlayer.Character
                 local leftHand = character and character:FindFirstChild("LeftHand")
                 if not leftHand then
                     task.wait(0.3)
                 end
-                local muscleEvent = game.Players.LocalPlayer:FindFirstChild("muscleEvent")
+                local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
                 if muscleEvent then
                     muscleEvent:FireServer("punch", "rightHand")
                     muscleEvent:FireServer("punch", "leftHand")
                 end
-                for _, player in pairs(game.Players:GetPlayers()) do
-                    if player ~= game.Players.LocalPlayer then
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer then
                         local goodKarma = player:FindFirstChild("goodKarma")
                         local evilKarma = player:FindFirstChild("evilKarma")
                         if goodKarma and evilKarma and evilKarma.Value > goodKarma.Value then
@@ -501,24 +516,31 @@ function evilKarmaKill(state)
     end
 end
 
+Killing:AddSwitch("EvilKarmaKill", function(state)
+    goodKarmaKill(state)
+    pcall(function()
+        Library:Notify("Evil Karma Kill " .. (state and "Enabled" or "Disabled"), 2)
+    end)
+end)
+
 function goodKarmaKill(state)
     getgenv().killGood = state
     if state then
         equipTool("Punch")
         task.spawn(function()
             while getgenv().killGood do
-                local character = game.Players.LocalPlayer.Character
+                local character = LocalPlayer.Character
                 local leftHand = character and character:FindFirstChild("LeftHand")
                 if not leftHand then
                     task.wait(0.3)
                 end
-                local muscleEvent = game.Players.LocalPlayer:FindFirstChild("muscleEvent")
+                local muscleEvent = LocalPlayer:FindFirstChild("muscleEvent")
                 if muscleEvent then
                     muscleEvent:FireServer("punch", "rightHand")
                     muscleEvent:FireServer("punch", "leftHand")
                 end
-                for _, player in pairs(game.Players:GetPlayers()) do
-                    if player ~= game.Players.LocalPlayer then
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer then
                         local goodKarma = player:FindFirstChild("goodKarma")
                         local evilKarma = player:FindFirstChild("evilKarma")
                         if goodKarma and evilKarma and goodKarma.Value > evilKarma.Value then
@@ -546,8 +568,8 @@ function goodKarmaKill(state)
 end
 
 function equipTool(toolName)
-    local character = game.Players.LocalPlayer.Character
-    local backpack = game.Players.LocalPlayer.Backpack
+    local character = LocalPlayer.Character
+    local backpack = LocalPlayer.Backpack
     if not (character and backpack) then return end
     local tool = backpack:FindFirstChild(toolName)
     if tool then
@@ -558,18 +580,7 @@ function equipTool(toolName)
     end
 end
 
--- Good Karma Kill Toggle
-Killing:NewToggle("Good Karma Kill", false, function(state)
-    evilKarmaKill(state)
-end)
-
--- Evil Karma Kill Toggle
-Killing:NewToggle("Evil Karma Kill", false, function(state)
-    goodKarmaKill(state)
-end)
-
--- Punch Death Toggle (All Active)
-Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
+Killing:AddSwitch("Punch Death (Egg Obligatorio)", function(value)
     allActive = value
 
     local Players = game:GetService("Players")
@@ -579,8 +590,8 @@ Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local lighting = game:GetService("Lighting")
 
-    -- Clear previous connections
-    for _, conn in pairs(connections or {}) do
+    -- Limpia conexiones previas
+    for _, conn in pairs(connections) do
         if conn and conn.Disconnect then
             conn:Disconnect()
         elseif typeof(conn) == "RBXScriptConnection" then
@@ -590,6 +601,8 @@ Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
     connections = {}
 
     if value then
+        print("✅ Activando todos los scripts")
+
         -- Auto Punch
         _G.AutoPunchToggle = true
         spawn(function()
@@ -717,6 +730,7 @@ Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
                 equipIfNeeded()
                 task.wait(0.5)
             end
+            print("Auto Protein Egg DESACTIVADO")
         end)
 
         -- Anti Fly
@@ -744,7 +758,11 @@ Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
             end
         end)
 
-        -- Anti Lag
+        print("🛡️ Anti-Fly ACTIVADO")
+
+        -- Anti Lag (simple ejecución sin desconexión)
+        print("✅ Anti-lag aplicado y cielo de atardecer activado.")
+
         local function softAntiLag()
             local classesToClean = {
                 ["ParticleEmitter"] = true,
@@ -809,22 +827,30 @@ Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
             while allActive do
                 local shake = backpack:FindFirstChild("Tropical Shake")
                 if not shake then
+                    warn("✅ Ya no quedan Tropical Shakes en el inventario.")
                     break
                 end
 
+                warn("🕹 Encontrada Tropical Shake:", shake, "- equipando...")
                 shake.Parent = player.Character
                 RunService.Heartbeat:Wait()
 
                 if shake.Activate then
                     shake:Activate()
+                    warn("🍹 Activada Tropical Shake:", shake)
                 elseif mouse1click then
                     mouse1click()
+                    warn("🍹 mouse1click() sobre Tropical Shake")
+                else
+                    warn("⚠️ No se pudo activar Tropical Shake: no hay Activate() ni mouse1click()")
                 end
 
                 task.wait(0.1)
             end
         end)
     else
+        print("🛑 Desactivando todos los scripts")
+
         _G.AutoPunchToggle = false
         _G.AutoProteinEgg = false
         getgenv().AntiFlyActive = false
@@ -833,11 +859,14 @@ Killing:NewToggle("Punch Death (Egg Obligatorio)", false, function(value)
             connections.AntiFly:Disconnect()
             connections.AntiFly = nil
         end
+
+        -- No hay lógica para revertir AntiLag ni AutoTropicalShake,
+        -- podrías agregarla si quieres.
+
     end
 end)
 
--- Death Ring Range TextBox
-Killing:NewTextBox("Death Ring Range", "1-140", true, function(text)
+Killing:AddTextBox("Range (1-140)", function(text)
     local range = tonumber(text)
     if range then
         range = math.clamp(range, 1, 140)
@@ -845,8 +874,7 @@ Killing:NewTextBox("Death Ring Range", "1-140", true, function(text)
     end
 end)
 
--- Death Ring Toggle
-Killing:NewToggle("Death Ring", false, function(bool)
+local deathRingSwitch = Killing:AddSwitch("Death Ring", function(bool)
     _G.deathRingEnabled = bool
 
     if bool then
@@ -863,7 +891,6 @@ Killing:NewToggle("Death Ring", false, function(bool)
 
                 for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
                     if player == game.Players.LocalPlayer or isWhitelisted(player) then
-                        continue
                     end
 
                     if isPlayerAlive(player) then
@@ -884,9 +911,9 @@ Killing:NewToggle("Death Ring", false, function(bool)
         end
     end
 end)
+deathRingSwitch:Set(false)
 
--- Kill Specific Player TextBox
-Killing:NewTextBox("Kill Specific Player", "Enter player name", true, function(text)
+Killing:AddTextBox("Player Name (Optional)", function(text)
     if text and text ~= "" then
         local player = findPlayerByName(text)
         if player then
@@ -899,8 +926,7 @@ Killing:NewTextBox("Kill Specific Player", "Enter player name", true, function(t
     end
 end)
 
--- Kill Player Toggle
-Killing:NewToggle("Kill Player", false, function(bool)
+local killPlayerSwitch = Killing:AddSwitch("Kill Player", function(bool)
     _G.killPlayerEnabled = bool
 
     if bool then
@@ -920,8 +946,8 @@ Killing:NewToggle("Kill Player", false, function(bool)
         end
     end
 end)
+killPlayerSwitch:Set(false)
 
--- Spectate functionality
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
@@ -969,51 +995,53 @@ local function stopSpectating()
         spectateConnection:Disconnect()
         spectateConnection = nil
     end
+    -- NO ponemos la cámara en el localplayer aquí para mantener el espectate activo
 end
 
--- Spectate Player TextBox
-Killing:NewTextBox("Player to Spectate", "Enter player name", true, function(text)
+-- UI: TextBox para nombre jugador
+Killing:AddTextBox("Player to Spectate", function(text)
     spectateName = text
 end)
 
--- Spectate Toggle
-Killing:NewToggle("Spectate Player", false, function(enabled)
+local spectateSwitch = Killing:AddSwitch("Spectate Player", function(enabled)
     if enabled then
         local player = findPlayerByPartialName(spectateName)
         if player then
             startSpectating(player)
         else
             warn("Jugador no encontrado: " .. tostring(spectateName))
+            spectateSwitch:Set(false)
         end
     else
         stopSpectating()
     end
 end)
+spectateSwitch:Set(false)
 
--- Maintain spectate when respawning
+-- Mantener espectate activo al reaparecer, SIN cambiar la cámara al localplayer
 LocalPlayer.CharacterAdded:Connect(function(char)
     task.wait(0.5)
-    if spectateName ~= "" and spectatingPlayer then
+    if spectateSwitch:Get() and spectateName ~= "" then
         local player = findPlayerByPartialName(spectateName)
         if player then
             startSpectating(player)
         else
+            warn("Jugador no encontrado al reaparecer: " .. tostring(spectateName))
+            spectateSwitch:Set(false)
             stopSpectating()
         end
     end
+    -- Aquí NO ponemos la cámara en el localplayer para no interrumpir el espectate
 end)
 
--- Status Labels
-Killing:NewLabel("═══════════════════════")
-Killing:NewLabel("WHITELIST STATUS:")
+local whitelistTitle = Killing:AddLabel("Whitelisted players:")
+local whitelistLabel = Killing:AddLabel("None")
+local targetTitle = Killing:AddLabel("Target Player:")
+local targetLabel = Killing:AddLabel("None")
 
-local whitelistLabel = Killing:NewLabel("None")
-local targetLabel = Killing:NewLabel("Target: None")
-
--- Update functions for labels
 local function updateWhitelistLabel()
     if not _G.whitelistedPlayers or #_G.whitelistedPlayers == 0 then
-        whitelistLabel:Set("Whitelisted: None")
+        whitelistLabel.Text = "None"
         return
     end
 
@@ -1026,45 +1054,35 @@ local function updateWhitelistLabel()
     end
 
     if #displayPlayers == 0 then
-        whitelistLabel:Set("Whitelisted: None")
+        whitelistLabel.Text = "None"
     else
-        local displayText = "Whitelisted: "
+        local displayText = ""
         for i, playerName in ipairs(displayPlayers) do
             if i > 1 then displayText = displayText .. ", " end
             displayText = displayText .. playerName
-            if #displayText > 50 then -- Limit text length
-                displayText = displayText .. "..."
-                break
-            end
         end
-        whitelistLabel:Set(displayText)
+        whitelistLabel.Text = displayText
     end
 end
 
 local function updateTargetLabel()
     if not _G.targetPlayer or _G.targetPlayer == "" then
-        targetLabel:Set("Target: None")
+        targetLabel.Text = "None"
     else
         local targetName = typeof(_G.targetPlayer) == "Instance" 
             and (_G.targetPlayer.Name .. " (" .. _G.targetPlayer.DisplayName .. ")")
             or tostring(_G.targetPlayer)
-        targetLabel:Set("Target: " .. targetName)
+        targetLabel.Text = targetName
     end
 end
 
--- Initialize labels
 updateWhitelistLabel()
 updateTargetLabel()
 
--- Update labels periodically
 spawn(function()
     while true do
         updateWhitelistLabel()
         updateTargetLabel()
-        task.wait(2) -- Update every 2 seconds
+        task.wait(1)
     end
 end)
-
--- Additional UI separator
-Killing:NewLabel("═══════════════════════")
-Killing:NewLabel("Script by MissSherya")
