@@ -902,9 +902,17 @@ player.CharacterAdded:Connect(function()
     end
 end)
 
-local packs = farmTab:AddFolder("  Farm Packs")
+-- Pack Farm Folder para Elerium v2
+local packFarmFolder = farmTab:Folder("  Packs Farm")
 
-packs:AddTextBox("Target Rebirth Amount", function(text)
+-- Variables
+local targetRebirth = math.huge
+local packFarmTarget = false
+local packFarmInfinite = false
+local fastStrength = false
+
+-- TextBox para Target Rebirth Amount
+packFarmFolder:Textbox("Target Rebirth Amount", "", function(text)
     local num = tonumber(text)
     if num then
         targetRebirth = num
@@ -913,7 +921,8 @@ packs:AddTextBox("Target Rebirth Amount", function(text)
     end
 end)
 
-local targetPackToggle = packs:AddSwitch("Pack Farm | Target", function(bool)
+-- Toggle para Pack Farm Target
+local targetPackToggle = packFarmFolder:Toggle("Pack Farm | Target", false, function(bool)
     packFarmTarget = bool
 
     if bool then
@@ -1004,7 +1013,8 @@ local targetPackToggle = packs:AddSwitch("Pack Farm | Target", function(bool)
     end
 end)
 
-local infinitePackToggle = packs:AddSwitch("Pack Farm | Infinite", function(bool)
+-- Toggle para Pack Farm Infinite
+local infinitePackToggle = packFarmFolder:Toggle("Pack Farm | Infinite", false, function(bool)
     packFarmInfinite = bool
 
     if bool then
@@ -1068,7 +1078,8 @@ local infinitePackToggle = packs:AddSwitch("Pack Farm | Infinite", function(bool
     end
 end)
 
-local fastStrengthToggle = packs:AddSwitch("Pack Farm | Fast Strength", function(bool)
+-- Toggle para Fast Strength
+local fastStrengthToggle = packFarmFolder:Toggle("Pack Farm | Fast Strength", false, function(bool)
     fastStrength = bool
 
     if bool then
@@ -1097,31 +1108,80 @@ local fastStrengthToggle = packs:AddSwitch("Pack Farm | Fast Strength", function
     end
 end)
 
-local movementFolder = miscTab:AddFolder("  Misc 1")
+-- Misc 1 Folder para Elerium v2
+local misc1Folder = miscTab:Folder("Misc 1")
 
-movementFolder:AddSlider("Walk Speed", function(value)
-    local character = player.Character
-    if character and character:FindFirstChild("Humanoid") then
-        character.Humanoid.WalkSpeed = value
-    end
-end, {
-    min = 0,
-    max = 10000,
-    default = 16,
-    precise = false,
-})
+-- Variables
+local player = game:GetService("Players").LocalPlayer
+local sizeValue = 2
+local speedValue = 16
+local autoSizeEnabled = false
+local autoSpeedEnabled = false
+local autoSizeConnection = nil
+local autoSpeedConnection = nil
 
-movementFolder:AddSlider("Jump Power", function(value)
-    local character = player.Character
-    if character and character:FindFirstChild("Humanoid") then
-        character.Humanoid.JumpPower = value
+-- TextBox para Auto Size
+misc1Folder:Textbox("Auto Size", "", function(text)
+    sizeValue = tonumber(text) or 2
+
+    if autoSizeEnabled then
+        pcall(function()
+            game:GetService("ReplicatedStorage").rEvents.changeSpeedSizeRemote:InvokeServer("changeSize", sizeValue)
+        end)
     end
-end, {
-    min = 0,
-    max = 10000,
-    default = 50,
-    precise = false,
-})
+end)
+
+-- Toggle para Auto Set Size
+local autoSizeSwitch = misc1Folder:Toggle("Auto Set Size", false, function(bool)
+    autoSizeEnabled = bool
+
+    if autoSizeEnabled then
+        spawn(function()
+            while autoSizeEnabled do
+                pcall(function()
+                    game:GetService("ReplicatedStorage").rEvents.changeSpeedSizeRemote:InvokeServer("changeSize", sizeValue)
+                end)
+                wait(0.1)
+            end
+        end)
+    end
+end)
+
+-- TextBox para Auto Speed
+misc1Folder:Textbox("Auto Speed", "", function(text)
+    speedValue = tonumber(text) or 16
+
+    if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = speedValue
+    end
+end)
+
+-- Toggle para Auto Set Speed
+local autoSpeedSwitch = misc1Folder:Toggle("Auto Set Speed", false, function(bool)
+    autoSpeedEnabled = bool
+
+    if autoSpeedEnabled then
+        if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.WalkSpeed = speedValue
+        end
+
+        if autoSpeedConnection then
+            autoSpeedConnection:Disconnect()
+        end
+
+        autoSpeedConnection = player.CharacterAdded:Connect(function(character)
+            local humanoid = character:WaitForChild("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = speedValue
+            end
+        end)
+    else
+        if autoSpeedConnection then
+            autoSpeedConnection:Disconnect()
+            autoSpeedConnection = nil
+        end
+    end
+end)
 
 local utilitiesFolder = miscTab:AddFolder("  Misc 2")
 
