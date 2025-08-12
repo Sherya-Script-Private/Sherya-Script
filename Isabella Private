@@ -1,14 +1,20 @@
+-- Cargar la librería
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/memejames/elerium-v2-ui-library/main/Library", true))()
+
+-- Servicios (sin repeticiones)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local player = Players.LocalPlayer
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local Workspace = game:GetService("Workspace")
 
+-- Player
+local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+
+-- UI Window
 local window = library:AddWindow("Sherya Script Free Version", {
     main_color = Color3.fromRGB(75, 0, 130),
     min_size = Vector2.new(600, 600),
@@ -22,6 +28,7 @@ local killerTab = window:AddTab("Killer")
 local teleportTab = window:AddTab("Teleport")
 local creditsTab = window:AddTab("Credits")
 
+-- Auto Brawls Folder
 local BrawlFolder = mainTab:AddFolder("  Auto Brawls")
 
 local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
@@ -50,7 +57,7 @@ local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
     local function isValidTarget(player)
         if not player or not player.Parent then return false end
         if player == Players.LocalPlayer then return false end
-        if whitelist[player.UserId] then return false end
+        if whitelist and whitelist[player.UserId] then return false end
 
         local character = player.Character
         if not character or not character.Parent then return false end
@@ -202,23 +209,19 @@ BrawlFolder:AddSwitch("Auto Join Brawls", function(bool)
 
             if game.Players.LocalPlayer.PlayerGui.gameGui.brawlJoinLabel.Visible then
                 game.ReplicatedStorage.rEvents.brawlEvent:FireServer("joinBrawl")
-
                 game.Players.LocalPlayer.PlayerGui.gameGui.brawlJoinLabel.Visible = false
             end
         end
     end)
 end)
 
+-- Jungle Gym Folder
 local jungleGymFolder = mainTab:AddFolder("  Jungle Gym")
 
-local VIM = game:GetService("VirtualInputManager")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
 local function pressE()
-    VIM:SendKeyEvent(true, "E", false, game)
+    VirtualInputManager:SendKeyEvent(true, "E", false, game)
     task.wait(0.1)
-    VIM:SendKeyEvent(false, "E", false, game)
+    VirtualInputManager:SendKeyEvent(false, "E", false, game)
 end
 
 local function autoLift()
@@ -286,6 +289,7 @@ jungleGymFolder:AddSwitch("Jungle Boulder", function(bool)
     end
 end)
 
+-- All Gyms Folder
 local farmGymsFolder = mainTab:AddFolder("  All Gyms")
 
 local workoutPositions = {
@@ -368,12 +372,8 @@ for _, workoutType in ipairs(workoutTypes) do
     gymToggles[workoutType] = toggle
 end
 
+-- Auto Snack Folder
 local autoSnackFolder = mainTab:AddFolder("  Auto Snack")
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local player = Players.LocalPlayer
 
 local activeSnacks = {
     ["Protein Shake"] = false,
@@ -391,23 +391,16 @@ local function equipAndUse(itemName)
     
     if not character or not backpack then return end
     
-    -- Buscar el item en la mochila
     local tool = backpack:FindFirstChild(itemName)
     
     if tool then
-        -- Equipar la herramienta
         tool.Parent = character
-        
-        -- Esperar un poco para asegurar que se equipe
         task.wait(0.1)
         
-        -- Verificar que se equipó correctamente
         local equippedTool = character:FindFirstChild(itemName)
         if equippedTool then
-            -- Activar la herramienta (equivalente a hacer clic)
             equippedTool:Activate()
             
-            -- También podemos intentar con el evento de mouse click
             local viewportSize = workspace.CurrentCamera.ViewportSize
             local x, y = viewportSize.X / 2, viewportSize.Y / 2
             VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
@@ -418,28 +411,25 @@ local function equipAndUse(itemName)
 end
 
 local function startSnackLoop(itemName)
-    -- Detener cualquier loop anterior para este item
     if snackConnections[itemName] then
         snackConnections[itemName]:Disconnect()
         snackConnections[itemName] = nil
     end
     
-    -- Crear nuevo loop
     snackConnections[itemName] = task.spawn(function()
         while activeSnacks[itemName] do
             local backpack = player.Backpack
             
             if backpack and backpack:FindFirstChild(itemName) then
                 equipAndUse(itemName)
-                task.wait(0.5) -- Esperar medio segundo entre usos
+                task.wait(0.5)
             else
-                -- Si no hay más items, desactivar el toggle
                 activeSnacks[itemName] = false
                 print("No more " .. itemName .. " available!")
                 break
             end
             
-            task.wait(0.1) -- Pequeña pausa para evitar spam
+            task.wait(0.1)
         end
     end)
 end
@@ -451,7 +441,6 @@ local function stopSnackLoop(itemName)
     end
 end
 
--- Crear los switches
 autoSnackFolder:AddSwitch("Protein Shake", function(state)
     activeSnacks["Protein Shake"] = state
     if state then
@@ -497,7 +486,6 @@ autoSnackFolder:AddSwitch("Energy Bar", function(state)
     end
 end)
 
--- Limpiar connections cuando el jugador se desconecte
 player.AncestryChanged:Connect(function()
     if not player.Parent then
         for itemName, connection in pairs(snackConnections) do
@@ -509,6 +497,7 @@ player.AncestryChanged:Connect(function()
     end
 end)
 
+-- Extras Folder
 local MSCCFolder = mainTab:AddFolder("  Extras")
 
 MSCCFolder:AddSwitch("Lock Position", function(state)
@@ -540,7 +529,6 @@ MSCCFolder:AddSwitch("Anti Knockback", function(Value)
 end)
 
 MSCCFolder:AddButton("Anti AFK", function()
-    -- Mostrar notificación de que se activó
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Anti AFK",
         Text = "Anti AFK se ha activado correctamente!",
@@ -574,12 +562,8 @@ MSCCFolder:AddButton("Anti AFK", function()
     end)
 end)
 
+-- Auto Rock Folder
 local autoRockFolder = farmTab:AddFolder("  Auto Rock")
-
-
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
 
 function gettool()
     for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
@@ -632,9 +616,7 @@ createRockSwitch("Legend Rock", "Legend Gym Rock", 1000000)
 createRockSwitch("Muscle King Rock", "Muscle King Gym Rock", 5000000)
 createRockSwitch("Jungle Rock", "Ancient Jungle Rock", 10000000)
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
+-- Auto Tools Folder
 local autoEquipToolsFolder = farmTab:AddFolder("  Auto Tools")
 
 autoEquipToolsFolder:AddButton("Gamepass AutoLift", function()
@@ -753,35 +735,36 @@ autoEquipToolsFolder:AddSwitch("Fast Tools", function(Value)
     end
 end)
 
+-- Auto Rebirths Folder
 local Rebirth = farmTab:AddFolder("  Auto Rebirths")
+
+local targetRebirthAmount = 1
 
 Rebirth:AddTextBox("Target Rebirth", function(value)
     local amount = tonumber(value) or 1
-    local currentRebirths = leaderstats.Rebirths.Value
+    local currentRebirths = player.leaderstats.Rebirths.Value
     if amount >= currentRebirths then
         targetRebirthAmount = amount
     end
-end, {clear = false})
+end)
 
 Rebirth:AddSwitch("Target Rebirth", function(enabled)
     if enabled then
         task.spawn(function()
             while enabled do
-                local currentRebirths = leaderstats.Rebirths.Value
+                local currentRebirths = player.leaderstats.Rebirths.Value
                 local requiredStrength = 10000 + 5000 * currentRebirths
                 
                 if currentRebirths >= targetRebirthAmount then
-                    targetRebirthToggle:Set(false)
                     break
                 end
                 
-                if leaderstats.Strength.Value >= requiredStrength then
-                    replicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
+                if player.leaderstats.Strength.Value >= requiredStrength then
+                    ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
                     task.wait(0.7)
                 else
-                    -- Auto strength farm while waiting
-                    for i = 1, repSpeed do
-                        MuscleEvent:FireServer("rep")
+                    for i = 1, 10 do
+                        player.muscleEvent:FireServer("rep")
                     end
                 end
                 
@@ -837,7 +820,6 @@ Rebirth:AddSwitch("Auto Size 2", function(state)
     end
 end)
 
-local player = Players.LocalPlayer
 local autoToggle = false
 
 local function equipWeight()
@@ -921,17 +903,15 @@ player.CharacterAdded:Connect(function()
     end
 end)
 
--- Pack Farm Folder para Elerium v2
+-- Pack Farm Folder
 local packFarmFolder = farmTab:AddFolder("  Packs Farm")
 
--- Variables
 local targetRebirth = math.huge
 local packFarmTarget = false
 local packFarmInfinite = false
 local fastStrength = false
 
--- TextBox para Target Rebirth Amount
-packFarmFolder:Textbox("Target Rebirth Amount", "", function(text)
+packFarmFolder:AddTextBox("Target Rebirth Amount", function(text)
     local num = tonumber(text)
     if num then
         targetRebirth = num
@@ -940,8 +920,7 @@ packFarmFolder:Textbox("Target Rebirth Amount", "", function(text)
     end
 end)
 
--- Toggle para Pack Farm Target
-local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", false, function(bool)
+local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", function(bool)
     packFarmTarget = bool
 
     if bool then
@@ -983,14 +962,16 @@ local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", false, f
                         packCount = 0
                     else
                         for i = 8, 1, -1 do
-                            if packRebirthValues[i] <= rebirthsNeeded then
+                            if packRebirthValues and packRebirthValues[i] <= rebirthsNeeded then
                                 packCount = i
                                 break
                             end
                         end
                     end
 
-                    equipSpecificPacks("Swift Samurai", 8)
+                    if equipSpecificPacks then
+                        equipSpecificPacks("Swift Samurai", 8)
+                    end
 
                     while packFarmTarget and player.leaderstats.Strength.Value < rebirthCost do
                         for i = 1, 10 do
@@ -999,9 +980,14 @@ local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", false, f
                         task.wait()
                     end
 
-                    equipSpecificPacks("Tribal Overlord", packCount)
+                    if equipSpecificPacks then
+                        equipSpecificPacks("Tribal Overlord", packCount)
+                    end
 
-                    local machine = findMachine("Jungle Bar Lift")
+                    local machine
+                    if findMachine then
+                        machine = findMachine("Jungle Bar Lift")
+                    end
                     if machine and machine:FindFirstChild("interactSeat") then
                         player.Character.HumanoidRootPart.CFrame = machine.interactSeat.CFrame * CFrame.new(0, 3, 0)
                         repeat
@@ -1019,21 +1005,28 @@ local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", false, f
                     task.wait(0.5)
                 end
 
-                lockPosition(false)
-                unequipAllPets()
+                if lockPosition then
+                    lockPosition(false)
+                end
+                if unequipAllPets then
+                    unequipAllPets()
+                end
             end)
         else
             packFarmTarget = false
             targetPackToggle:Set(false)
         end
     else
-        lockPosition(false)
-        unequipAllPets()
+        if lockPosition then
+            lockPosition(false)
+        end
+        if unequipAllPets then
+            unequipAllPets()
+        end
     end
 end)
 
--- Toggle para Pack Farm Infinite
-local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", false, function(bool)
+local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", function(bool)
     packFarmInfinite = bool
 
     if bool then
@@ -1048,7 +1041,9 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", fals
         end
 
         task.spawn(function()
-            lockPosition(true)
+            if lockPosition then
+                lockPosition(true)
+            end
 
             while packFarmInfinite do
                 local currentRebirths = player.leaderstats.Rebirths.Value
@@ -1059,7 +1054,9 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", fals
                     rebirthCost = math.floor(rebirthCost * (1 - (goldenRebirths * 0.1)))
                 end
 
-                equipSpecificPacks("Swift Samurai", 8)
+                if equipSpecificPacks then
+                    equipSpecificPacks("Swift Samurai", 8)
+                end
 
                 while packFarmInfinite and player.leaderstats.Strength.Value < rebirthCost do
                     for i = 1, 10 do
@@ -1068,9 +1065,14 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", fals
                     task.wait()
                 end
 
-                equipSpecificPacks("Tribal Overlord", 8)
+                if equipSpecificPacks then
+                    equipSpecificPacks("Tribal Overlord", 8)
+                end
 
-                local machine = findMachine("Jungle Bar Lift")
+                local machine
+                if findMachine then
+                    machine = findMachine("Jungle Bar Lift")
+                end
                 if machine and machine:FindFirstChild("interactSeat") then
                     player.Character.HumanoidRootPart.CFrame = machine.interactSeat.CFrame * CFrame.new(0, 3, 0)
                     repeat
@@ -1088,17 +1090,24 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", fals
                 task.wait(0.5)
             end
 
-            lockPosition(false)
-            unequipAllPets()
+            if lockPosition then
+                lockPosition(false)
+            end
+            if unequipAllPets then
+                unequipAllPets()
+            end
         end)
     else
-        lockPosition(false)
-        unequipAllPets()
+        if lockPosition then
+            lockPosition(false)
+        end
+        if unequipAllPets then
+            unequipAllPets()
+        end
     end
 end)
 
--- Toggle para Fast Strength
-local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength", false, function(bool)
+local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength", function(bool)
     fastStrength = bool
 
     if bool then
@@ -1113,7 +1122,9 @@ local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength",
         end
 
         task.spawn(function()
-            equipSpecificPacks("Swift Samurai", 8)
+            if equipSpecificPacks then
+                equipSpecificPacks("Swift Samurai", 8)
+            end
 
             while fastStrength do
                 for i = 1, 10 do
@@ -1123,15 +1134,15 @@ local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength",
             end
         end)
     else
-        unequipAllPets()
+        if unequipAllPets then
+            unequipAllPets()
+        end
     end
 end)
 
--- Misc 1 Folder para Elerium v2
+-- Misc 1 Folder
 local misc1Folder = miscTab:AddFolder("Misc 1")
 
--- Variables
-local player = game:GetService("Players").LocalPlayer
 local sizeValue = 2
 local speedValue = 16
 local autoSizeEnabled = false
@@ -1139,8 +1150,7 @@ local autoSpeedEnabled = false
 local autoSizeConnection = nil
 local autoSpeedConnection = nil
 
--- TextBox para Auto Size
-misc1Folder:Textbox("Auto Size", "", function(text)
+misc1Folder:AddTextBox("Auto Size", function(text)
     sizeValue = tonumber(text) or 2
 
     if autoSizeEnabled then
@@ -1150,8 +1160,7 @@ misc1Folder:Textbox("Auto Size", "", function(text)
     end
 end)
 
--- Toggle para Auto Set Size
-local autoSizeSwitch = misc1Folder:AddSwitch("Auto Set Size", false, function(bool)
+local autoSizeSwitch = misc1Folder:AddSwitch("Auto Set Size", function(bool)
     autoSizeEnabled = bool
 
     if autoSizeEnabled then
@@ -1166,8 +1175,7 @@ local autoSizeSwitch = misc1Folder:AddSwitch("Auto Set Size", false, function(bo
     end
 end)
 
--- TextBox para Auto Speed
-misc1Folder:Textbox("Auto Speed", "", function(text)
+misc1Folder:AddTextBox("Auto Speed", function(text)
     speedValue = tonumber(text) or 16
 
     if player and player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -1175,8 +1183,7 @@ misc1Folder:Textbox("Auto Speed", "", function(text)
     end
 end)
 
--- Toggle para Auto Set Speed
-local autoSpeedSwitch = misc1Folder:AddSwitch("Auto Set Speed", false, function(bool)
+local autoSpeedSwitch = misc1Folder:AddSwitch("Auto Set Speed", function(bool)
     autoSpeedEnabled = bool
 
     if autoSpeedEnabled then
