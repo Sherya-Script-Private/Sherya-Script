@@ -740,31 +740,34 @@ local Rebirth = farmTab:AddFolder("  Auto Rebirths")
 
 local targetRebirthAmount = 1
 
-Rebirth:AddTextBox("Target Rebirth", function(value)
+Rebirth:AddTextBox("Target Rebirth Amount", function(value)
     local amount = tonumber(value) or 1
-    local currentRebirths = player.leaderstats.Rebirths.Value
+    local currentRebirths = leaderstats.Rebirths.Value
     if amount >= currentRebirths then
         targetRebirthAmount = amount
     end
-end)
+end, {clear = false})
 
-Rebirth:AddSwitch("Target Rebirth", function(enabled)
+-- Target Rebirth Toggle
+local targetRebirthToggle = Rebirth:AddSwitch("Target Rebirth", function(enabled)
     if enabled then
         task.spawn(function()
             while enabled do
-                local currentRebirths = player.leaderstats.Rebirths.Value
+                local currentRebirths = leaderstats.Rebirths.Value
                 local requiredStrength = 10000 + 5000 * currentRebirths
                 
                 if currentRebirths >= targetRebirthAmount then
+                    targetRebirthToggle:Set(false)
                     break
                 end
                 
-                if player.leaderstats.Strength.Value >= requiredStrength then
-                    ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
+                if leaderstats.Strength.Value >= requiredStrength then
+                    replicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
                     task.wait(0.7)
                 else
-                    for i = 1, 10 do
-                        player.muscleEvent:FireServer("rep")
+                    -- Auto strength farm while waiting
+                    for i = 1, repSpeed do
+                        MuscleEvent:FireServer("rep")
                     end
                 end
                 
@@ -904,14 +907,177 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- Pack Farm Folder
-local packFarmFolder = farmTab:AddFolder("  Packs Farm")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
 
+local startTime = 0
+local rebirthStartTime = 0
+local startRebirths = 0
+local hasStarted = false
 local targetRebirth = math.huge
+
 local packFarmTarget = false
 local packFarmInfinite = false
 local fastStrength = false
 
-packFarmFolder:AddTextBox("Target Rebirth Amount", function(text)
+local function formatNumber(number)
+    if number >= 1e15 then return string.format("%.2fQ", number/1e15)
+    elseif number >= 1e12 then return string.format("%.2fT", number/1e12)
+    elseif number >= 1e9 then return string.format("%.2fB", number/1e9)
+    elseif number >= 1e6 then return string.format("%.2fM", number/1e6)
+    elseif number >= 1e3 then return string.format("%.2fK", number/1e3)
+    end
+    return tostring(math.floor(number))
+end
+
+local function formatNumberWithCommas(number)
+    local formatted = tostring(math.floor(number))
+    local k
+    while true do
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+        if k == 0 then break end
+    end
+    return formatted
+end
+
+local function formatTime(seconds)
+    local hours = math.floor(seconds / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+    return string.format("%02d:%02d:%02d", hours, minutes, secs)
+end
+
+local packRebirthValues = {
+    [0] = 1,  
+    [1] = 2,  
+    [2] = 4,  
+    [3] = 6,  
+    [4] = 8,  
+    [5] = 10, 
+    [6] = 12, 
+    [7] = 14, 
+    [8] = 16  
+}
+
+local function unequipAllPets()
+    local petsFolder = player.petsFolder
+    for _, folder in pairs(petsFolder:GetChildren()) do
+        if folder:IsA("Folder") then
+            for _, pet in pairs(folder:GetChildren()) do
+                ReplicatedStorage.rEvents.equipPetEvent:FireServer("unequipPet", pet)
+            end
+        end
+    end
+    task.wait(0.1)
+end
+
+local function equipSpecificPacks(packName, count)
+    unequipAllPets()
+    task.wait(0.2)
+
+    local packs = {}
+    for _, pet in pairs(player.petsFolder.Unique:GetChildren()) do
+        if pet.Name == packName then
+            table.insert(packs, pet)
+        end
+    end
+
+    local packsToEquip = math.min(count, #packs)
+    for i = 1, packsToEquip do
+        ReplicatedStorage.rEvents.equipPetEvent:FireServer("equipPet", packs[i])
+        task.wait(0.1)
+    end
+
+    return packsToEquip
+end
+
+local function findMachine(machineName)
+    local machine = workspace.machinesFolder:FindFirstChild(machineName)
+    if not machine then
+        for _, folder in pairs(workspace:GetChildren()) do
+            if folder:IsA("Folder") and folder.Name:find("machines") then
+                machine = folder:FindFirstChild(machineName)
+                if machine then break end
+            end
+        end
+    end
+    return machine
+end
+
+local function pressE()
+    local vim = game:GetService("VirtualInputManager")
+    vim:SendKeyEvent(true, "E", false, game)
+    task.wait(0.1)
+    vim:SendKeyEvent(false, "E", false, game)
+end
+
+local isPositionLocked = false
+local originalCFrame = nil
+local function lockPosition(lock)
+    isPositionLocked = lock
+
+    if lock and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        originalCFrame = player.Character.HumanoidRootPart.CFrame
+
+        if not _G.positionConnection then
+            _G.positionConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if isPositionLocked and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and originalCFrame then
+                    player.Character.HumanoidRootPart.CFrame = originalCFrame
+                    player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+                    player.Character.HumanoidRootPart.RotVelocity = Vector3.new(0, 0, 0)
+                end
+            end)
+        end
+    elseif not lock and _G.positionConnection then
+        _G.positionConnection:Disconnect()
+        _G.positionConnection = nil
+    end
+end
+
+local function calculateOptimalPacks(currentRebirths, targetRebirths)
+    local rebirthsNeeded = targetRebirths - currentRebirths
+
+    if rebirthsNeeded <= 0 then
+        return 0
+    end
+
+    if rebirthsNeeded == 1 then
+        return 0
+    end
+
+    for packCount = 1, 8 do
+        if packRebirthValues[packCount] == rebirthsNeeded then
+            return packCount
+        end
+    end
+
+    for packCount = 8, 1, -1 do
+        if packRebirthValues[packCount] < rebirthsNeeded then
+            local remaining = rebirthsNeeded - packRebirthValues[packCount]
+
+            if remaining == 1 then
+                return packCount
+            end
+
+            for secondPackCount = 8, 0, -1 do
+                if packRebirthValues[secondPackCount] == remaining then
+                    return packCount
+                end
+            end
+
+            return packCount
+        end
+    end
+
+    return 0
+end
+
+-- Crear folder para Pack Farm
+local PackFarmFolder = farmTab:AddFolder("  Packs Farm")
+
+PackFarmFolder:AddTextBox("Target Rebirth Amount", function(text)
     local num = tonumber(text)
     if num then
         targetRebirth = num
@@ -920,7 +1086,7 @@ packFarmFolder:AddTextBox("Target Rebirth Amount", function(text)
     end
 end)
 
-local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", function(bool)
+local targetPackToggle = PackFarmFolder:AddSwitch("Pack Farm | Target", function(bool)
     packFarmTarget = bool
 
     if bool then
@@ -962,16 +1128,14 @@ local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", function
                         packCount = 0
                     else
                         for i = 8, 1, -1 do
-                            if packRebirthValues and packRebirthValues[i] <= rebirthsNeeded then
+                            if packRebirthValues[i] <= rebirthsNeeded then
                                 packCount = i
                                 break
                             end
                         end
                     end
 
-                    if equipSpecificPacks then
-                        equipSpecificPacks("Swift Samurai", 8)
-                    end
+                    equipSpecificPacks("Swift Samurai", 8)
 
                     while packFarmTarget and player.leaderstats.Strength.Value < rebirthCost do
                         for i = 1, 10 do
@@ -980,14 +1144,9 @@ local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", function
                         task.wait()
                     end
 
-                    if equipSpecificPacks then
-                        equipSpecificPacks("Tribal Overlord", packCount)
-                    end
+                    equipSpecificPacks("Tribal Overlord", packCount)
 
-                    local machine
-                    if findMachine then
-                        machine = findMachine("Jungle Bar Lift")
-                    end
+                    local machine = findMachine("Jungle Bar Lift")
                     if machine and machine:FindFirstChild("interactSeat") then
                         player.Character.HumanoidRootPart.CFrame = machine.interactSeat.CFrame * CFrame.new(0, 3, 0)
                         repeat
@@ -1005,28 +1164,20 @@ local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", function
                     task.wait(0.5)
                 end
 
-                if lockPosition then
-                    lockPosition(false)
-                end
-                if unequipAllPets then
-                    unequipAllPets()
-                end
+                lockPosition(false)
+                unequipAllPets()
             end)
         else
             packFarmTarget = false
             targetPackToggle:Set(false)
         end
     else
-        if lockPosition then
-            lockPosition(false)
-        end
-        if unequipAllPets then
-            unequipAllPets()
-        end
+        lockPosition(false)
+        unequipAllPets()
     end
 end)
 
-local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", function(bool)
+local infinitePackToggle = PackFarmFolder:AddSwitch("Pack Farm | Infinite", function(bool)
     packFarmInfinite = bool
 
     if bool then
@@ -1041,9 +1192,7 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", func
         end
 
         task.spawn(function()
-            if lockPosition then
-                lockPosition(true)
-            end
+            lockPosition(true)
 
             while packFarmInfinite do
                 local currentRebirths = player.leaderstats.Rebirths.Value
@@ -1054,9 +1203,7 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", func
                     rebirthCost = math.floor(rebirthCost * (1 - (goldenRebirths * 0.1)))
                 end
 
-                if equipSpecificPacks then
-                    equipSpecificPacks("Swift Samurai", 8)
-                end
+                equipSpecificPacks("Swift Samurai", 8)
 
                 while packFarmInfinite and player.leaderstats.Strength.Value < rebirthCost do
                     for i = 1, 10 do
@@ -1065,14 +1212,9 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", func
                     task.wait()
                 end
 
-                if equipSpecificPacks then
-                    equipSpecificPacks("Tribal Overlord", 8)
-                end
+                equipSpecificPacks("Tribal Overlord", 8)
 
-                local machine
-                if findMachine then
-                    machine = findMachine("Jungle Bar Lift")
-                end
+                local machine = findMachine("Jungle Bar Lift")
                 if machine and machine:FindFirstChild("interactSeat") then
                     player.Character.HumanoidRootPart.CFrame = machine.interactSeat.CFrame * CFrame.new(0, 3, 0)
                     repeat
@@ -1090,24 +1232,16 @@ local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", func
                 task.wait(0.5)
             end
 
-            if lockPosition then
-                lockPosition(false)
-            end
-            if unequipAllPets then
-                unequipAllPets()
-            end
+            lockPosition(false)
+            unequipAllPets()
         end)
     else
-        if lockPosition then
-            lockPosition(false)
-        end
-        if unequipAllPets then
-            unequipAllPets()
-        end
+        lockPosition(false)
+        unequipAllPets()
     end
 end)
 
-local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength", function(bool)
+local fastStrengthToggle = PackFarmFolder:AddSwitch("Pack Farm | Fast Strength", function(bool)
     fastStrength = bool
 
     if bool then
@@ -1122,9 +1256,7 @@ local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength",
         end
 
         task.spawn(function()
-            if equipSpecificPacks then
-                equipSpecificPacks("Swift Samurai", 8)
-            end
+            equipSpecificPacks("Swift Samurai", 8)
 
             while fastStrength do
                 for i = 1, 10 do
@@ -1134,9 +1266,7 @@ local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength",
             end
         end)
     else
-        if unequipAllPets then
-            unequipAllPets()
-        end
+        unequipAllPets()
     end
 end)
 
