@@ -380,6 +380,7 @@ local activeSnacks = {
     ["Energy Shake"] = false,
     ["TOUGH Bar"] = false,
     ["ULTRA Shake"] = false,
+    ["Energy Bar"] = false,
 }
 
 local snackConnections = {}
@@ -469,7 +470,7 @@ autoSnackFolder:AddSwitch("Energy Shake", function(state)
     end
 end)
 
-autoSnackFolder:AddSwitch("TOUGH Bar", function(state)
+autoSnackFolder:AddSwitch("Tough Bar", function(state)
     activeSnacks["TOUGH Bar"] = state
     if state then
         startSnackLoop("TOUGH Bar")
@@ -478,12 +479,21 @@ autoSnackFolder:AddSwitch("TOUGH Bar", function(state)
     end
 end)
 
-autoSnackFolder:AddSwitch("ULTRA Shake", function(state)
+autoSnackFolder:AddSwitch("Ultra Shake", function(state)
     activeSnacks["ULTRA Shake"] = state
     if state then
         startSnackLoop("ULTRA Shake")
     else
         stopSnackLoop("ULTRA Shake")
+    end
+end)
+
+autoSnackFolder:AddSwitch("Energy Bar", function(state)
+    activeSnacks["Energy Bar"] = state
+    if state then
+        startSnackLoop("Energy Bar")
+    else
+        stopSnackLoop("Energy Bar")
     end
 end)
 
@@ -500,6 +510,15 @@ player.AncestryChanged:Connect(function()
 end)
 
 local MSCCFolder = mainTab:AddFolder("  Extras")
+
+MSCCFolder:AddSwitch("Lock Position", function(state)
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+    if rootPart then
+        rootPart.Anchored = state
+    end
+end)
 
 MSCCFolder:AddSwitch("Anti Knockback", function(Value)
     if Value then
@@ -903,7 +922,7 @@ player.CharacterAdded:Connect(function()
 end)
 
 -- Pack Farm Folder para Elerium v2
-local packFarmFolder = farmTab:Folder("  Packs Farm")
+local packFarmFolder = farmTab:AddFolder("  Packs Farm")
 
 -- Variables
 local targetRebirth = math.huge
@@ -922,7 +941,7 @@ packFarmFolder:Textbox("Target Rebirth Amount", "", function(text)
 end)
 
 -- Toggle para Pack Farm Target
-local targetPackToggle = packFarmFolder:Toggle("Pack Farm | Target", false, function(bool)
+local targetPackToggle = packFarmFolder:AddSwitch("Pack Farm | Target", false, function(bool)
     packFarmTarget = bool
 
     if bool then
@@ -1014,7 +1033,7 @@ local targetPackToggle = packFarmFolder:Toggle("Pack Farm | Target", false, func
 end)
 
 -- Toggle para Pack Farm Infinite
-local infinitePackToggle = packFarmFolder:Toggle("Pack Farm | Infinite", false, function(bool)
+local infinitePackToggle = packFarmFolder:AddSwitch("Pack Farm | Infinite", false, function(bool)
     packFarmInfinite = bool
 
     if bool then
@@ -1079,7 +1098,7 @@ local infinitePackToggle = packFarmFolder:Toggle("Pack Farm | Infinite", false, 
 end)
 
 -- Toggle para Fast Strength
-local fastStrengthToggle = packFarmFolder:Toggle("Pack Farm | Fast Strength", false, function(bool)
+local fastStrengthToggle = packFarmFolder:AddSwitch("Pack Farm | Fast Strength", false, function(bool)
     fastStrength = bool
 
     if bool then
@@ -1109,7 +1128,7 @@ local fastStrengthToggle = packFarmFolder:Toggle("Pack Farm | Fast Strength", fa
 end)
 
 -- Misc 1 Folder para Elerium v2
-local misc1Folder = miscTab:Folder("Misc 1")
+local misc1Folder = miscTab:AddFolder("Misc 1")
 
 -- Variables
 local player = game:GetService("Players").LocalPlayer
@@ -1132,7 +1151,7 @@ misc1Folder:Textbox("Auto Size", "", function(text)
 end)
 
 -- Toggle para Auto Set Size
-local autoSizeSwitch = misc1Folder:Toggle("Auto Set Size", false, function(bool)
+local autoSizeSwitch = misc1Folder:AddSwitch("Auto Set Size", false, function(bool)
     autoSizeEnabled = bool
 
     if autoSizeEnabled then
@@ -1157,7 +1176,7 @@ misc1Folder:Textbox("Auto Speed", "", function(text)
 end)
 
 -- Toggle para Auto Set Speed
-local autoSpeedSwitch = misc1Folder:Toggle("Auto Set Speed", false, function(bool)
+local autoSpeedSwitch = misc1Folder:AddSwitch("Auto Set Speed", false, function(bool)
     autoSpeedEnabled = bool
 
     if autoSpeedEnabled then
