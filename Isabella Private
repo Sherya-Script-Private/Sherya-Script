@@ -22,12 +22,9 @@ local killerTab = window:AddTab("Killer")
 local teleportTab = window:AddTab("Teleport")
 local creditsTab = window:AddTab("Credits")
 
-local autoBrawlsFolder = mainTab:AddFolder("  Auto Brawls")
+local BrawlFolder = mainTab:AddFolder("  Auto Brawls")
 
-local Players = game:GetService("Players")
-local whitelist = {} 
-
-local autoWinBrawlSwitch = autoBrawlsFolder:AddSwitch("Auto Win Brawls", function(bool)
+local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
     getgenv().autoWinBrawl = bool
 
     local function equipPunch()
@@ -196,7 +193,7 @@ local autoWinBrawlSwitch = autoBrawlsFolder:AddSwitch("Auto Win Brawls", functio
     end)
 end)
 
-autoBrawlsFolder:AddSwitch("Auto Brawls", function(bool)
+BrawlFolder:AddSwitch("Auto Join Brawls", function(bool)
     getgenv().autoJoinBrawl = bool
 
     task.spawn(function()
@@ -211,7 +208,6 @@ autoBrawlsFolder:AddSwitch("Auto Brawls", function(bool)
         end
     end)
 end)
-
 
 local jungleGymFolder = mainTab:AddFolder("  Jungle Gym")
 
@@ -372,6 +368,137 @@ for _, workoutType in ipairs(workoutTypes) do
     gymToggles[workoutType] = toggle
 end
 
+local autoSnackFolder = mainTab:AddFolder("  Auto Snack")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+
+local activeSnacks = {
+    ["Protein Shake"] = false,
+    ["Energy Shake"] = false,
+    ["TOUGH Bar"] = false,
+    ["ULTRA Shake"] = false,
+}
+
+local snackConnections = {}
+
+local function equipAndUse(itemName)
+    local character = player.Character
+    local backpack = player.Backpack
+    
+    if not character or not backpack then return end
+    
+    -- Buscar el item en la mochila
+    local tool = backpack:FindFirstChild(itemName)
+    
+    if tool then
+        -- Equipar la herramienta
+        tool.Parent = character
+        
+        -- Esperar un poco para asegurar que se equipe
+        task.wait(0.1)
+        
+        -- Verificar que se equipó correctamente
+        local equippedTool = character:FindFirstChild(itemName)
+        if equippedTool then
+            -- Activar la herramienta (equivalente a hacer clic)
+            equippedTool:Activate()
+            
+            -- También podemos intentar con el evento de mouse click
+            local viewportSize = workspace.CurrentCamera.ViewportSize
+            local x, y = viewportSize.X / 2, viewportSize.Y / 2
+            VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+            task.wait(0.01)
+            VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+        end
+    end
+end
+
+local function startSnackLoop(itemName)
+    -- Detener cualquier loop anterior para este item
+    if snackConnections[itemName] then
+        snackConnections[itemName]:Disconnect()
+        snackConnections[itemName] = nil
+    end
+    
+    -- Crear nuevo loop
+    snackConnections[itemName] = task.spawn(function()
+        while activeSnacks[itemName] do
+            local backpack = player.Backpack
+            
+            if backpack and backpack:FindFirstChild(itemName) then
+                equipAndUse(itemName)
+                task.wait(0.5) -- Esperar medio segundo entre usos
+            else
+                -- Si no hay más items, desactivar el toggle
+                activeSnacks[itemName] = false
+                print("No more " .. itemName .. " available!")
+                break
+            end
+            
+            task.wait(0.1) -- Pequeña pausa para evitar spam
+        end
+    end)
+end
+
+local function stopSnackLoop(itemName)
+    if snackConnections[itemName] then
+        task.cancel(snackConnections[itemName])
+        snackConnections[itemName] = nil
+    end
+end
+
+-- Crear los switches
+autoSnackFolder:AddSwitch("Protein Shake", function(state)
+    activeSnacks["Protein Shake"] = state
+    if state then
+        startSnackLoop("Protein Shake")
+    else
+        stopSnackLoop("Protein Shake")
+    end
+end)
+
+autoSnackFolder:AddSwitch("Energy Shake", function(state)
+    activeSnacks["Energy Shake"] = state
+    if state then
+        startSnackLoop("Energy Shake")
+    else
+        stopSnackLoop("Energy Shake")
+    end
+end)
+
+autoSnackFolder:AddSwitch("TOUGH Bar", function(state)
+    activeSnacks["TOUGH Bar"] = state
+    if state then
+        startSnackLoop("TOUGH Bar")
+    else
+        stopSnackLoop("TOUGH Bar")
+    end
+end)
+
+autoSnackFolder:AddSwitch("ULTRA Shake", function(state)
+    activeSnacks["ULTRA Shake"] = state
+    if state then
+        startSnackLoop("ULTRA Shake")
+    else
+        stopSnackLoop("ULTRA Shake")
+    end
+end)
+
+-- Limpiar connections cuando el jugador se desconecte
+player.AncestryChanged:Connect(function()
+    if not player.Parent then
+        for itemName, connection in pairs(snackConnections) do
+            if connection then
+                task.cancel(connection)
+            end
+        end
+        snackConnections = {}
+    end
+end)
+
 local MSCCFolder = mainTab:AddFolder("  Extras")
 
 MSCCFolder:AddSwitch("Anti Knockback", function(Value)
@@ -394,6 +521,14 @@ MSCCFolder:AddSwitch("Anti Knockback", function(Value)
 end)
 
 MSCCFolder:AddButton("Anti AFK", function()
+    -- Mostrar notificación de que se activó
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Anti AFK",
+        Text = "Anti AFK se ha activado correctamente!",
+        Duration = 3,
+        Button1 = "OK"
+    })
+    
     local GC = getconnections or get_signal_cons
     if GC then
         for i, v in pairs(GC(game.Players.LocalPlayer.Idled)) do
@@ -767,133 +902,197 @@ player.CharacterAdded:Connect(function()
     end
 end)
 
-local autoSnackFolder = farmTab:AddFolder("  Auto Snack")
+local packs = farmTab:AddFolder("  Farm Packs")
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local player = Players.LocalPlayer
+packs:AddTextBox("Target Rebirth Amount", function(text)
+    local num = tonumber(text)
+    if num then
+        targetRebirth = num
+    else
+        targetRebirth = math.huge
+    end
+end)
 
-local activeSnacks = {
-    ["Protein Shake"] = false,
-    ["Energy Shake"] = false,
-    ["TOUGH Bar"] = false,
-    ["ULTRA Shake"] = false,
-}
+local targetPackToggle = packs:AddSwitch("Pack Farm | Target", function(bool)
+    packFarmTarget = bool
 
-local snackConnections = {}
-
-local function equipAndUse(itemName)
-    local character = player.Character
-    local backpack = player.Backpack
-    
-    if not character or not backpack then return end
-    
-    -- Buscar el item en la mochila
-    local tool = backpack:FindFirstChild(itemName)
-    
-    if tool then
-        -- Equipar la herramienta
-        tool.Parent = character
-        
-        -- Esperar un poco para asegurar que se equipe
-        task.wait(0.1)
-        
-        -- Verificar que se equipó correctamente
-        local equippedTool = character:FindFirstChild(itemName)
-        if equippedTool then
-            -- Activar la herramienta (equivalente a hacer clic)
-            equippedTool:Activate()
-            
-            -- También podemos intentar con el evento de mouse click
-            local viewportSize = workspace.CurrentCamera.ViewportSize
-            local x, y = viewportSize.X / 2, viewportSize.Y / 2
-            VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
-            task.wait(0.01)
-            VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    if bool then
+        if packFarmInfinite then
+            packFarmInfinite = false
+            infinitePackToggle:Set(false)
         end
-    end
-end
 
-local function startSnackLoop(itemName)
-    -- Detener cualquier loop anterior para este item
-    if snackConnections[itemName] then
-        snackConnections[itemName]:Disconnect()
-        snackConnections[itemName] = nil
+        if fastStrength then
+            fastStrength = false
+            fastStrengthToggle:Set(false)
+        end
+
+        if targetRebirth ~= math.huge and targetRebirth > player.leaderstats.Rebirths.Value then
+            task.spawn(function()
+                lockPosition(true)
+
+                while packFarmTarget do
+                    local currentRebirths = player.leaderstats.Rebirths.Value
+
+                    if currentRebirths >= targetRebirth then
+                        packFarmTarget = false
+                        targetPackToggle:Set(false)
+                        lockPosition(false)
+                        break
+                    end
+
+                    local rebirthCost = 10000 + (5000 * currentRebirths)
+                    if player.ultimatesFolder:FindFirstChild("Golden Rebirth") then
+                        local goldenRebirths = player.ultimatesFolder["Golden Rebirth"].Value
+                        rebirthCost = math.floor(rebirthCost * (1 - (goldenRebirths * 0.1)))
+                    end
+
+                    local rebirthsNeeded = targetRebirth - currentRebirths
+
+                    local packCount = 0
+
+                    if rebirthsNeeded == 1 then
+                        packCount = 0
+                    else
+                        for i = 8, 1, -1 do
+                            if packRebirthValues[i] <= rebirthsNeeded then
+                                packCount = i
+                                break
+                            end
+                        end
+                    end
+
+                    equipSpecificPacks("Swift Samurai", 8)
+
+                    while packFarmTarget and player.leaderstats.Strength.Value < rebirthCost do
+                        for i = 1, 10 do
+                            player.muscleEvent:FireServer("rep")
+                        end
+                        task.wait()
+                    end
+
+                    equipSpecificPacks("Tribal Overlord", packCount)
+
+                    local machine = findMachine("Jungle Bar Lift")
+                    if machine and machine:FindFirstChild("interactSeat") then
+                        player.Character.HumanoidRootPart.CFrame = machine.interactSeat.CFrame * CFrame.new(0, 3, 0)
+                        repeat
+                            task.wait(0.1)
+                            pressE()
+                        until player.Character.Humanoid.Sit
+                    end
+
+                    local initialRebirths = player.leaderstats.Rebirths.Value
+                    repeat
+                        ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
+                        task.wait(0.1)
+                    until player.leaderstats.Rebirths.Value > initialRebirths
+
+                    task.wait(0.5)
+                end
+
+                lockPosition(false)
+                unequipAllPets()
+            end)
+        else
+            packFarmTarget = false
+            targetPackToggle:Set(false)
+        end
+    else
+        lockPosition(false)
+        unequipAllPets()
     end
-    
-    -- Crear nuevo loop
-    snackConnections[itemName] = task.spawn(function()
-        while activeSnacks[itemName] do
-            local backpack = player.Backpack
-            
-            if backpack and backpack:FindFirstChild(itemName) then
-                equipAndUse(itemName)
-                task.wait(0.5) -- Esperar medio segundo entre usos
-            else
-                -- Si no hay más items, desactivar el toggle
-                activeSnacks[itemName] = false
-                print("No more " .. itemName .. " available!")
-                break
+end)
+
+local infinitePackToggle = packs:AddSwitch("Pack Farm | Infinite", function(bool)
+    packFarmInfinite = bool
+
+    if bool then
+        if packFarmTarget then
+            packFarmTarget = false
+            targetPackToggle:Set(false)
+        end
+
+        if fastStrength then
+            fastStrength = false
+            fastStrengthToggle:Set(false)
+        end
+
+        task.spawn(function()
+            lockPosition(true)
+
+            while packFarmInfinite do
+                local currentRebirths = player.leaderstats.Rebirths.Value
+
+                local rebirthCost = 10000 + (5000 * currentRebirths)
+                if player.ultimatesFolder:FindFirstChild("Golden Rebirth") then
+                    local goldenRebirths = player.ultimatesFolder["Golden Rebirth"].Value
+                    rebirthCost = math.floor(rebirthCost * (1 - (goldenRebirths * 0.1)))
+                end
+
+                equipSpecificPacks("Swift Samurai", 8)
+
+                while packFarmInfinite and player.leaderstats.Strength.Value < rebirthCost do
+                    for i = 1, 10 do
+                        player.muscleEvent:FireServer("rep")
+                    end
+                    task.wait()
+                end
+
+                equipSpecificPacks("Tribal Overlord", 8)
+
+                local machine = findMachine("Jungle Bar Lift")
+                if machine and machine:FindFirstChild("interactSeat") then
+                    player.Character.HumanoidRootPart.CFrame = machine.interactSeat.CFrame * CFrame.new(0, 3, 0)
+                    repeat
+                        task.wait(0.1)
+                        pressE()
+                    until player.Character.Humanoid.Sit
+                end
+
+                local initialRebirths = player.leaderstats.Rebirths.Value
+                repeat
+                    ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
+                    task.wait(0.1)
+                until player.leaderstats.Rebirths.Value > initialRebirths
+
+                task.wait(0.5)
             end
-            
-            task.wait(0.1) -- Pequeña pausa para evitar spam
+
+            lockPosition(false)
+            unequipAllPets()
+        end)
+    else
+        lockPosition(false)
+        unequipAllPets()
+    end
+end)
+
+local fastStrengthToggle = packs:AddSwitch("Pack Farm | Fast Strength", function(bool)
+    fastStrength = bool
+
+    if bool then
+        if packFarmTarget then
+            packFarmTarget = false
+            targetPackToggle:Set(false)
         end
-    end)
-end
 
-local function stopSnackLoop(itemName)
-    if snackConnections[itemName] then
-        task.cancel(snackConnections[itemName])
-        snackConnections[itemName] = nil
-    end
-end
+        if packFarmInfinite then
+            packFarmInfinite = false
+            infinitePackToggle:Set(false)
+        end
 
--- Crear los switches
-autoSnackFolder:AddSwitch("Protein Shake", function(state)
-    activeSnacks["Protein Shake"] = state
-    if state then
-        startSnackLoop("Protein Shake")
-    else
-        stopSnackLoop("Protein Shake")
-    end
-end)
+        task.spawn(function()
+            equipSpecificPacks("Swift Samurai", 8)
 
-autoSnackFolder:AddSwitch("Energy Shake", function(state)
-    activeSnacks["Energy Shake"] = state
-    if state then
-        startSnackLoop("Energy Shake")
-    else
-        stopSnackLoop("Energy Shake")
-    end
-end)
-
-autoSnackFolder:AddSwitch("TOUGH Bar", function(state)
-    activeSnacks["TOUGH Bar"] = state
-    if state then
-        startSnackLoop("TOUGH Bar")
-    else
-        stopSnackLoop("TOUGH Bar")
-    end
-end)
-
-autoSnackFolder:AddSwitch("ULTRA Shake", function(state)
-    activeSnacks["ULTRA Shake"] = state
-    if state then
-        startSnackLoop("ULTRA Shake")
-    else
-        stopSnackLoop("ULTRA Shake")
-    end
-end)
-
--- Limpiar connections cuando el jugador se desconecte
-player.AncestryChanged:Connect(function()
-    if not player.Parent then
-        for itemName, connection in pairs(snackConnections) do
-            if connection then
-                task.cancel(connection)
+            while fastStrength do
+                for i = 1, 10 do
+                    player.muscleEvent:FireServer("rep")
+                end
+                task.wait()
             end
-        end
-        snackConnections = {}
+        end)
+    else
+        unequipAllPets()
     end
 end)
