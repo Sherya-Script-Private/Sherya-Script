@@ -290,7 +290,7 @@ jungleGymFolder:AddSwitch("Jungle Boulder", function(bool)
     end
 end)
 
-local farmGymsFolder = farmTab:AddFolder("  Gyms")
+local farmGymsFolder = mainTab:AddFolder("  All Gyms")
 
 local workoutPositions = {
     ["Bench Press"] = {
@@ -372,7 +372,7 @@ for _, workoutType in ipairs(workoutTypes) do
     gymToggles[workoutType] = toggle
 end
 
-local MSCCFolder = mainTab:AddFolder("  Extra")
+local MSCCFolder = mainTab:AddFolder("  Extras")
 
 MSCCFolder:AddSwitch("Anti Knockback", function(Value)
     if Value then
@@ -767,4 +767,52 @@ player.CharacterAdded:Connect(function()
     end
 end)
 
-local snacks = farmTab:AddFolder("  Auto Snacks")
+local autoSnackFolder = farmTab:AddFolder("  Auto Snack")
+
+local activeSnacks = {
+    ["Protein Shake"] = false,
+    ["Energy Shake"] = false,
+    ["TOUGH Bar"] = false,
+    ["ULTRA Shake"] = false,
+}
+
+local function equipAndUse(itemName)
+    local tool = backpack:FindFirstChild(itemName) or character:FindFirstChild(itemName)
+    if tool and tool.Parent ~= character then
+        tool.Parent = character
+    end
+
+    if tool and tool.Parent == character then
+        -- Simular clic para usar el objeto equipado
+        -- El clic se hace en la posición central de la pantalla
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        local x, y = viewportSize.X / 2, viewportSize.Y / 2
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    end
+end
+
+autoSnackFolder:AddSwitch("Protein Shake", function(state)
+    activeSnacks["Protein Shake"] = state
+end)
+
+autoSnackFolder:AddSwitch("Energy Shake", function(state)
+    activeSnacks["Energy Shake"] = state
+end)
+
+autoSnackFolder:AddSwitch("TOUGH Bar", function(state)
+    activeSnacks["TOUGH Bar"] = state
+end)
+
+autoSnackFolder:AddSwitch("ULTRA Shake", function(state)
+    activeSnacks["ULTRA Shake"] = state
+end)
+
+RunService.RenderStepped:Connect(function()
+    character = player.Character or player.CharacterAdded:Wait()
+    for itemName, active in pairs(activeSnacks) do
+        if active then
+            equipAndUse(itemName)
+        end
+    end
+end)
