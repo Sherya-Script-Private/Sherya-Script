@@ -5,8 +5,8 @@ local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
-local window = library:AddWindow("Sherya Script", {
-    main_color = Color3.fromRGB(255, 0, 0),
+local window = library:AddWindow("Sherya Script Free Version", {
+    main_color = Color3.fromRGB(75, 0, 130),
     min_size = Vector2.new(600, 600),
     can_resize = false,
 })
