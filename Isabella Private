@@ -290,7 +290,7 @@ jungleGymFolder:AddSwitch("Jungle Boulder", function(bool)
     end
 end)
 
-local farmGymsFolder = gymtab:AddFolder("  Gyms")
+local farmGymsFolder = farmTab:AddFolder("  Gyms")
 
 local workoutPositions = {
     ["Bench Press"] = {
