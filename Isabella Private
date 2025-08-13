@@ -1270,8 +1270,17 @@ local fastStrengthToggle = PackFarmFolder:AddSwitch("Pack Farm | Fast Strength",
     end
 end)
 
+local switch = PackFarmFolder:AddSwitch("Hide All Frames", function(state)
+    local rSto = game:GetService("ReplicatedStorage")
+    for _, obj in pairs(rSto:GetChildren()) do
+        if obj.Name:match("Frame$") then
+            obj.Visible = not state
+        end
+    end
+end)
+
 -- Misc 1 Folder
-local misc1Folder = miscTab:AddFolder("Misc 1")
+local misc1Folder = miscTab:AddFolder("  Misc 1")
 
 local sizeValue = 2
 local speedValue = 16
@@ -1339,223 +1348,147 @@ local autoSpeedSwitch = misc1Folder:AddSwitch("Auto Set Speed", function(bool)
     end
 end)
 
-local utilitiesFolder = miscTab:AddFolder("  Misc 2")
+-- Folder Misc 2
+local Misc2 = miscTab:AddFolder("  Misc 2")
 
--- Chat Spy
-utilitiesFolder:AddSwitch("Chat Spy", function(state)
-    local ChatService = game:GetService("Chat")
-    local Players = game:GetService("Players")
-
-    if state then
-        if not _G.ChatSpyConnection then
-            _G.ChatSpyConnection = Players.PlayerAdded:Connect(function(player)
-                player.Chatted:Connect(function(message)
-                    print("[ChatSpy] " .. player.Name .. ": " .. message)
-                end)
-            end)
-
-            for _, player in pairs(Players:GetPlayers()) do
-                player.Chatted:Connect(function(message)
-                    print("[ChatSpy] " .. player.Name .. ": " .. message)
-                end)
-            end
-        end
-    else
-        if _G.ChatSpyConnection then
-            _G.ChatSpyConnection:Disconnect()
-            _G.ChatSpyConnection = nil
-        end
-    end
+-- Botón Infinite Yield
+Misc2:AddButton("Infinite Yield", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
 end)
 
--- Fly (simple)
-local flyEnabled = false
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-
-utilitiesFolder:AddSwitch("Fly", function(state)
-    flyEnabled = state
-
-    if flyEnabled then
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Name = "FlyVelocity"
-        bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        bodyVelocity.Parent = humanoidRootPart
-
-        local bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.Name = "FlyGyro"
-        bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-        bodyGyro.CFrame = humanoidRootPart.CFrame
-        bodyGyro.Parent = humanoidRootPart
-
-        local connection
-        connection = RunService.RenderStepped:Connect(function()
-            if not flyEnabled then
-                connection:Disconnect()
-                bodyVelocity:Destroy()
-                bodyGyro:Destroy()
-                return
-            end
-
-            local direction = Vector3.new()
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                direction = direction + workspace.CurrentCamera.CFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                direction = direction - workspace.CurrentCamera.CFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                direction = direction - workspace.CurrentCamera.CFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                direction = direction + workspace.CurrentCamera.CFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                direction = direction + Vector3.new(0, 1, 0)
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                direction = direction - Vector3.new(0, 1, 0)
-            end
-
-            bodyVelocity.Velocity = direction.Unit * 50
-            bodyGyro.CFrame = workspace.CurrentCamera.CFrame
-        end)
-    end
+-- Botón GhostX Hub
+Misc2:AddButton("GhostX Hub", function()
+    loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-GhostX-Hub-7158"))()
 end)
 
--- No Clip
-utilitiesFolder:AddSwitch("No Clip", function(state)
-    local RunService = game:GetService("RunService")
-    local player = game.Players.LocalPlayer
+local misc3Folder = miscTab:AddFolder("Misc 3")
 
-    if state then
-        _G.NoClip = true
-        _G.NoClipConnection = RunService.Stepped:Connect(function()
-            if player.Character then
-                for _, part in pairs(player.Character:GetChildren()) do
-                    if part:IsA("BasePart") then
+-- Add No-Clip toggle
+misc3Folder:AddSwitch("No-Clip", function(bool)
+    _G.NoClip = bool
+    
+    if bool then
+        local noclipLoop
+        noclipLoop = game:GetService("RunService").Stepped:Connect(function()
+            if _G.NoClip then
+                for _, part in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
                         part.CanCollide = false
                     end
                 end
+            else
+                noclipLoop:Disconnect()
             end
         end)
-    else
-        _G.NoClip = false
-        if _G.NoClipConnection then
-            _G.NoClipConnection:Disconnect()
-            _G.NoClipConnection = nil
-        end
-        if player.Character then
-            for _, part in pairs(player.Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "No-Clip Activado",
+            Text = "Ahora puedes atravesar objetos",
+            Duration = 0
+        })
+    end
+end)
+
+-- Add Infinite Jump toggle
+misc3Folder:AddSwitch("Jump Infinite", function(bool)
+    _G.InfiniteJump = bool
+    
+    if bool then
+        local InfiniteJumpConnection
+        InfiniteJumpConnection = game:GetService("UserInputService").JumpRequest:Connect(function()
+            if _G.InfiniteJump then
+                game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+            else
+                InfiniteJumpConnection:Disconnect()
             end
-        end
+        end)
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Salto Infinito Activado",
+            Text = "Ahora puedes saltar sin límites",
+            Duration = 0
+        })
     end
 end)
 
-local lightingFolder = miscTab:AddFolder("  Misc 3")
-
-local Lighting = game:GetService("Lighting")
-
-local function setMorning()
-    Lighting.TimeOfDay = "06:00:00"
-    Lighting.Brightness = 2
-    Lighting.FogEnd = 100000
-    Lighting.Ambient = Color3.fromRGB(200, 200, 200)
-    Lighting.OutdoorAmbient = Color3.fromRGB(180, 180, 180)
-    Lighting.FogColor = Color3.fromRGB(200, 200, 255)
-    print("Set to Morning")
-end
-
-local function setAfternoon()
-    Lighting.TimeOfDay = "15:00:00"
-    Lighting.Brightness = 3
-    Lighting.FogEnd = 100000
-    Lighting.Ambient = Color3.fromRGB(255, 255, 220)
-    Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 220)
-    Lighting.FogColor = Color3.fromRGB(255, 200, 150)
-    print("Set to Afternoon")
-end
-
-local function setNight()
-    Lighting.TimeOfDay = "21:00:00"
-    Lighting.Brightness = 0.5
-    Lighting.FogEnd = 500
-    Lighting.Ambient = Color3.fromRGB(50, 50, 80)
-    Lighting.OutdoorAmbient = Color3.fromRGB(20, 20, 40)
-    Lighting.FogColor = Color3.fromRGB(10, 10, 20)
-    print("Set to Night")
-end
-
-lightingFolder:AddButton("Mañana", setMorning)
-lightingFolder:AddButton("Tarde", setAfternoon)
-lightingFolder:AddButton("Noche", setNight)
-
-local antiLagFolder = miscTab:AddFolder("  Misc 4")
-
-local Lighting = game:GetService("Lighting")
-
-antiLagFolder:AddSwitch("Desactivar Sombras", function(state)
-    Lighting.GlobalShadows = not state
+local timeDropdown = misc3Folder:AddDropdown("Change Time", function(selection)
+    local lighting = game:GetService("Lighting")
+    
+    -- Fix 1: Match the dropdown options with the actual strings being added
+    if selection == "Night" then
+        lighting.ClockTime = 0  -- Midnight (0:00)
+    elseif selection == "Day" then
+        lighting.ClockTime = 12  -- Noon (12:00)
+    elseif selection == "Midnight" then
+        lighting.ClockTime = 6   -- Dawn/Early morning (6:00)
+    end
+    
+    -- Fix 2: Use pcall to handle potential errors with SetCore
+    local success, error = pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Time Changed",
+            Text = "Time has been changed to: " .. selection,
+            Duration = 3  -- Fix 3: Duration should not be 0
+        })
+    end)
+    
+    -- Optional: Print to console if notification fails
+    if not success then
+        print("Time changed to: " .. selection)
+    end
 end)
 
-antiLagFolder:AddSwitch("Reducir Calidad Gráfica", function(state)
-    if state then
-        workspace.LevelOfDetail = 0
+-- Add time options (these must match the strings in the callback function)
+timeDropdown:Add("Night")
+timeDropdown:Add("Day")
+timeDropdown:Add("Midnight")
+
+
+local antiAFKConnection
+local function setupAntiAFK()
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+    end
+    antiAFKConnection = Player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end
+setupAntiAFK()
+
+local function removePortals()
+    for _, portal in pairs(game:GetDescendants()) do
+        if portal.Name == "RobloxForwardPortals" then
+            portal:Destroy()
+        end
+    end
+    if _G.AdRemovalConnection then
+        _G.AdRemovalConnection:Disconnect()
+    end
+    _G.AdRemovalConnection = game.DescendantAdded:Connect(function(descendant)
+        if descendant.Name == "RobloxForwardPortals" then
+            descendant:Destroy()
+        end
+    end)
+end
+removePortals()
+
+-- Folder Misc 4 en miscTab
+local Misc4 = miscTab:AddFolder("Misc 4")
+
+Misc4:AddSwitch("Disable Trade", function(State)
+    if State then
+        game:GetService("ReplicatedStorage").rEvents.tradingEvent:FireServer("disableTrading")
     else
-        workspace.LevelOfDetail = 2
+        game:GetService("ReplicatedStorage").rEvents.tradingEvent:FireServer("enableTrading")
     end
 end)
 
-antiLagFolder:AddSwitch("Quitar Efectos Visuales", function(state)
-    if state then
-        if Lighting:FindFirstChildOfClass("BlurEffect") then
-            Lighting.BlurEffect.Enabled = false
-        end
-        if Lighting:FindFirstChildOfClass("SunRaysEffect") then
-            Lighting.SunRaysEffect.Enabled = false
-        end
-        if Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
-            Lighting.ColorCorrectionEffect.Enabled = false
-        end
-        if Lighting:FindFirstChildOfClass("BloomEffect") then
-            Lighting.BloomEffect.Enabled = false
-        end
+Misc4:AddSwitch("Hide Pets", function(State)
+    if State then
+        game:GetService("ReplicatedStorage").rEvents.showPetsEvent:FireServer("hidePets")
     else
-        if Lighting:FindFirstChildOfClass("BlurEffect") then
-            Lighting.BlurEffect.Enabled = true
-        end
-        if Lighting:FindFirstChildOfClass("SunRaysEffect") then
-            Lighting.SunRaysEffect.Enabled = true
-        end
-        if Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
-            Lighting.ColorCorrectionEffect.Enabled = true
-        end
-        if Lighting:FindFirstChildOfClass("BloomEffect") then
-            Lighting.BloomEffect.Enabled = true
-        end
+        game:GetService("ReplicatedStorage").rEvents.showPetsEvent:FireServer("showPets")
     end
 end)
 
-antiLagFolder:AddSwitch("Eliminar Partículas", function(state)
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") then
-            obj.Enabled = not state
-        end
-    end
-end)
-
-antiLagFolder:AddButton("Limpiar Objetos No Esenciales", function()
-    for _, obj in pairs(workspace:GetChildren()) do
-        if obj.Name == "SomeNonEssentialObject" then
-            obj:Destroy()
-        end
-    end
-    print("Objetos no esenciales limpiados.")
-end)
