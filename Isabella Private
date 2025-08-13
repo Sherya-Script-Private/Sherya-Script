@@ -9,24 +9,50 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local StarterPack = game:GetService("StarterPack")
 
 -- Player
 local player = Players.LocalPlayer
 local LocalPlayer = Players.LocalPlayer
 
+-- Variables globales
+_G.whitelistedPlayers = _G.whitelistedPlayers or {}
+if not table.find(_G.whitelistedPlayers, "MissSherya") then
+    table.insert(_G.whitelistedPlayers, "MissSherya")
+end
+
+local connections = {}
+local allActive = false
+
+-- Función para manejar errores
+local function safeCall(func, ...)
+    local success, error = pcall(func, ...)
+    if not success then
+        warn("Error en script: " .. tostring(error))
+    end
+    return success
+end
+
 -- UI Window
 local window = library:AddWindow("Sherya Script Free Version", {
     main_color = Color3.fromRGB(75, 0, 130),
-    min_size = Vector2.new(600, 600),
-    can_resize = false,
+    min_size = Vector2.new(600, 650),
+    can_resize = true,
 })
 
 local mainTab = window:AddTab("Main")
 local farmTab = window:AddTab("Farm")
 local miscTab = window:AddTab("Misc")
+local pets = window:AddTab("Pets")
+local Stats = window:AddTab("Stats")
 local Killing = window:AddTab("Killer")
 local Teleport = window:AddTab("Teleport")
 local creditsTab = window:AddTab("Credits")
+
+-- ============================================================================
+-- MAIN TAB
+-- ============================================================================
 
 -- Auto Brawls Folder
 local BrawlFolder = mainTab:AddFolder("  Auto Brawls")
@@ -36,15 +62,11 @@ local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
 
     local function equipPunch()
         if not getgenv().autoWinBrawl then return end
-
         local character = game.Players.LocalPlayer.Character
         if not character then return false end
-
         if character:FindFirstChild("Punch") then return true end
-
         local backpack = game.Players.LocalPlayer.Backpack
         if not backpack then return false end
-
         for _, tool in pairs(backpack:GetChildren()) do
             if tool.ClassName == "Tool" and tool.Name == "Punch" then
                 tool.Parent = character
@@ -58,55 +80,43 @@ local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
         if not player or not player.Parent then return false end
         if player == Players.LocalPlayer then return false end
         if whitelist and whitelist[player.UserId] then return false end
-
         local character = player.Character
         if not character or not character.Parent then return false end
-
         local humanoid = character:FindFirstChild("Humanoid")
         if not humanoid then return false end
-
         if not humanoid.Health or humanoid.Health <= 0 then return false end
         if humanoid:GetState() == Enum.HumanoidStateType.Dead then return false end
-
         local rootPart = character:FindFirstChild("HumanoidRootPart")
         if not rootPart or not rootPart.Parent then return false end
-
         return true
     end
 
     local function isLocalPlayerReady()
         local player = game.Players.LocalPlayer
         if not player then return false end
-
         local character = player.Character
         if not character or not character.Parent then return false end
-
         local humanoid = character:FindFirstChild("Humanoid")
         if not humanoid or humanoid.Health <= 0 then return false end
-
         local leftHand = character:FindFirstChild("LeftHand")
         local rightHand = character:FindFirstChild("RightHand")
-
         return (leftHand ~= nil or rightHand ~= nil)
     end
 
     local function safeTouchInterest(targetPart, localPart)
         if not targetPart or not targetPart.Parent then return false end
         if not localPart or not localPart.Parent then return false end
-
         local success, err = pcall(function()
             firetouchinterest(targetPart, localPart, 0)
             task.wait(0.01)
             firetouchinterest(targetPart, localPart, 1)
         end)
-
         return success
     end
 
     task.spawn(function()
         while getgenv().autoWinBrawl and task.wait(0.5) do
             if not getgenv().autoWinBrawl then break end
-
             if game.Players.LocalPlayer.PlayerGui.gameGui.brawlJoinLabel.Visible then
                 game.ReplicatedStorage.rEvents.brawlEvent:FireServer("joinBrawl")
                 game.Players.LocalPlayer.PlayerGui.gameGui.brawlJoinLabel.Visible = false
@@ -124,7 +134,6 @@ local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
     task.spawn(function()
         while getgenv().autoWinBrawl and task.wait(0.1) do
             if not getgenv().autoWinBrawl then break end
-
             if isLocalPlayerReady() and game.ReplicatedStorage.brawlInProgress.Value then
                 local player = game.Players.LocalPlayer
                 pcall(function() player.muscleEvent:FireServer("punch", "rightHand") end)
@@ -136,64 +145,24 @@ local autoWinBrawl = BrawlFolder:AddSwitch("Auto Win Brawls", function(bool)
     task.spawn(function()
         while getgenv().autoWinBrawl and task.wait(0.05) do
             if not getgenv().autoWinBrawl then break end
-
             if isLocalPlayerReady() and game.ReplicatedStorage.brawlInProgress.Value then
                 local character = game.Players.LocalPlayer.Character
                 local leftHand = character:FindFirstChild("LeftHand")
                 local rightHand = character:FindFirstChild("RightHand")
-
                 for _, player in pairs(Players:GetPlayers()) do
-
                     if not getgenv().autoWinBrawl then break end
-
                     pcall(function()
                         if isValidTarget(player) then
                             local targetRoot = player.Character.HumanoidRootPart
-
                             if leftHand then
                                 safeTouchInterest(targetRoot, leftHand)
                             end
-
                             if rightHand then
                                 safeTouchInterest(targetRoot, rightHand)
                             end
                         end
                     end)
-
                     task.wait(0.01)
-                end
-            end
-        end
-    end)
-
-    task.spawn(function()
-        local lastPlayerCount = 0
-        local stuckCounter = 0
-
-        while getgenv().autoWinBrawl and task.wait(1) do
-            if not getgenv().autoWinBrawl then break end
-
-            local currentPlayerCount = #Players:GetPlayers()
-
-            if currentPlayerCount ~= lastPlayerCount then
-                stuckCounter = 0
-                lastPlayerCount = currentPlayerCount
-            else
-                stuckCounter = stuckCounter + 1
-
-                if stuckCounter > 5 then
-                    stuckCounter = 0
-
-                    pcall(function()
-                        local character = game.Players.LocalPlayer.Character
-                        if character and character:FindFirstChild("Punch") then
-                            character.Punch.Parent = game.Players.LocalPlayer.Backpack
-                            task.wait(0.1)
-                            equipPunch()
-                        else
-                            equipPunch()
-                        end
-                    end)
                 end
             end
         end
@@ -202,11 +171,9 @@ end)
 
 BrawlFolder:AddSwitch("Auto Join Brawls", function(bool)
     getgenv().autoJoinBrawl = bool
-
     task.spawn(function()
         while getgenv().autoJoinBrawl and task.wait(0.5) do
             if not getgenv().autoJoinBrawl then break end
-
             if game.Players.LocalPlayer.PlayerGui.gameGui.brawlJoinLabel.Visible then
                 game.ReplicatedStorage.rEvents.brawlEvent:FireServer("joinBrawl")
                 game.Players.LocalPlayer.PlayerGui.gameGui.brawlJoinLabel.Visible = false
@@ -246,7 +213,6 @@ jungleGymFolder:AddSwitch("Jungle Bench Press", function(bool)
         getgenv().working = false
         return
     end
-    
     getgenv().working = bool
     if bool then
         teleportAndStart("Bench Press", CFrame.new(-8173, 64, 1898))
@@ -258,7 +224,6 @@ jungleGymFolder:AddSwitch("Jungle Squat", function(bool)
         getgenv().working = false
         return
     end
-    
     getgenv().working = bool
     if bool then
         teleportAndStart("Squat", CFrame.new(-8352, 34, 2878))
@@ -270,7 +235,6 @@ jungleGymFolder:AddSwitch("Jungle Pull Ups", function(bool)
         getgenv().working = false
         return
     end
-    
     getgenv().working = bool
     if bool then
         teleportAndStart("Pull Up", CFrame.new(-8666, 34, 2070))
@@ -282,7 +246,6 @@ jungleGymFolder:AddSwitch("Jungle Boulder", function(bool)
         getgenv().working = false
         return
     end
-    
     getgenv().working = bool
     if bool then
         teleportAndStart("Boulder", CFrame.new(-8621, 34, 2684))
@@ -315,22 +278,11 @@ local workoutPositions = {
     }
 }
 
-local workoutTypes = {
-    "Bench Press",
-    "Squat",
-    "Deadlift",
-    "Pull Up"
-}
-
-local gymLocations = {
-    "Eternal Gym",
-    "Legend Gym",
-    "Muscle King Gym"
-}
-
+local workoutTypes = {"Bench Press", "Squat", "Deadlift", "Pull Up"}
+local gymLocations = {"Eternal Gym", "Legend Gym", "Muscle King Gym"}
 local workoutTranslations = {
     ["Bench Press"] = "Bench Press",
-    ["Squat"] = "Squat",
+    ["Squat"] = "Squat", 
     ["Deadlift"] = "Dead Lift",
     ["Pull Up"] = "Pull Up"
 }
@@ -338,7 +290,6 @@ local workoutTranslations = {
 local gymToggles = {}
 
 for _, workoutType in ipairs(workoutTypes) do
-    local dropdownName = workoutType .. "GymDropdown"
     local spanishWorkoutName = workoutTranslations[workoutType]
     
     local dropdown = farmGymsFolder:AddDropdown(spanishWorkoutName .. " - Gym", function(selected)
@@ -349,7 +300,6 @@ for _, workoutType in ipairs(workoutTypes) do
         dropdown:Add(gymName)
     end
     
-    local toggleName = workoutType .. "GymToggle"
     local toggle = farmGymsFolder:AddSwitch(spanishWorkoutName, function(bool)
         getgenv().workingGym = bool
         getgenv().currentWorkoutType = workoutType
@@ -363,7 +313,6 @@ for _, workoutType in ipairs(workoutTypes) do
                         otherToggle:Set(false)
                     end
                 end
-                
                 teleportAndStart(workoutType, workoutPositions[workoutType][selectedGym])
             end
         end
@@ -441,50 +390,18 @@ local function stopSnackLoop(itemName)
     end
 end
 
-autoSnackFolder:AddSwitch("Protein Shake", function(state)
-    activeSnacks["Protein Shake"] = state
-    if state then
-        startSnackLoop("Protein Shake")
-    else
-        stopSnackLoop("Protein Shake")
-    end
-end)
-
-autoSnackFolder:AddSwitch("Energy Shake", function(state)
-    activeSnacks["Energy Shake"] = state
-    if state then
-        startSnackLoop("Energy Shake")
-    else
-        stopSnackLoop("Energy Shake")
-    end
-end)
-
-autoSnackFolder:AddSwitch("Tough Bar", function(state)
-    activeSnacks["TOUGH Bar"] = state
-    if state then
-        startSnackLoop("TOUGH Bar")
-    else
-        stopSnackLoop("TOUGH Bar")
-    end
-end)
-
-autoSnackFolder:AddSwitch("Ultra Shake", function(state)
-    activeSnacks["ULTRA Shake"] = state
-    if state then
-        startSnackLoop("ULTRA Shake")
-    else
-        stopSnackLoop("ULTRA Shake")
-    end
-end)
-
-autoSnackFolder:AddSwitch("Energy Bar", function(state)
-    activeSnacks["Energy Bar"] = state
-    if state then
-        startSnackLoop("Energy Bar")
-    else
-        stopSnackLoop("Energy Bar")
-    end
-end)
+for _, snackName in pairs({"Protein Shake", "Energy Shake", "Tough Bar", "Ultra Shake", "Energy Bar"}) do
+    local displayName = snackName == "Tough Bar" and "TOUGH Bar" or (snackName == "Ultra Shake" and "ULTRA Shake" or snackName)
+    
+    autoSnackFolder:AddSwitch(snackName, function(state)
+        activeSnacks[displayName] = state
+        if state then
+            startSnackLoop(displayName)
+        else
+            stopSnackLoop(displayName)
+        end
+    end)
+end
 
 player.AncestryChanged:Connect(function()
     if not player.Parent then
@@ -503,29 +420,30 @@ local MSCCFolder = mainTab:AddFolder("  Extras")
 MSCCFolder:AddSwitch("Lock Position", function(state)
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local rootPart = character:FindFirstChild("HumanoidRootPart")
-
     if rootPart then
         rootPart.Anchored = state
     end
 end)
 
 MSCCFolder:AddSwitch("Anti Knockback", function(Value)
-    if Value then
-        local playerName = game.Players.LocalPlayer.Name
-        local rootPart = game.Workspace:FindFirstChild(playerName):FindFirstChild("HumanoidRootPart")
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        bodyVelocity.P = 1250
-        bodyVelocity.Parent = rootPart
-    else
-        local playerName = game.Players.LocalPlayer.Name
-        local rootPart = game.Workspace:FindFirstChild(playerName):FindFirstChild("HumanoidRootPart")
-        local existingVelocity = rootPart:FindFirstChild("BodyVelocity")
-        if existingVelocity and existingVelocity.MaxForce == Vector3.new(100000, 0, 100000) then
-            existingVelocity:Destroy()
+    safeCall(function()
+        if Value then
+            local playerName = game.Players.LocalPlayer.Name
+            local rootPart = game.Workspace:FindFirstChild(playerName):FindFirstChild("HumanoidRootPart")
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            bodyVelocity.P = 1250
+            bodyVelocity.Parent = rootPart
+        else
+            local playerName = game.Players.LocalPlayer.Name
+            local rootPart = game.Workspace:FindFirstChild(playerName):FindFirstChild("HumanoidRootPart")
+            local existingVelocity = rootPart:FindFirstChild("BodyVelocity")
+            if existingVelocity and existingVelocity.MaxForce == Vector3.new(100000, 0, 100000) then
+                existingVelocity:Destroy()
+            end
         end
-    end
+    end)
 end)
 
 MSCCFolder:AddButton("Anti AFK", function()
@@ -561,6 +479,10 @@ MSCCFolder:AddButton("Anti AFK", function()
         end
     end)
 end)
+
+-- ============================================================================
+-- FARM TAB
+-- ============================================================================
 
 -- Auto Rock Folder
 local autoRockFolder = farmTab:AddFolder("  Auto Rock")
@@ -606,28 +528,36 @@ local function createRockSwitch(name, selectRockName, durabilityRequirement)
     end)
 end
 
-createRockSwitch("Tiny Rock", "Tiny Island Rock", 0)
-createRockSwitch("Starter Rock", "Starter Island Rock", 100)
-createRockSwitch("Legend Beach Rock", "Legend Beach Rock", 5000)
-createRockSwitch("Frozen Rock", "Frost Gym Rock", 150000)
-createRockSwitch("Mythical Rock", "Mythical Gym Rock", 400000)
-createRockSwitch("Eternal Rock", "Eternal Gym Rock", 750000)
-createRockSwitch("Legend Rock", "Legend Gym Rock", 1000000)
-createRockSwitch("Muscle King Rock", "Muscle King Gym Rock", 5000000)
-createRockSwitch("Jungle Rock", "Ancient Jungle Rock", 10000000)
+local rocks = {
+    {"Tiny Rock", "Tiny Island Rock", 0},
+    {"Starter Rock", "Starter Island Rock", 100},
+    {"Legend Beach Rock", "Legend Beach Rock", 5000},
+    {"Frozen Rock", "Frost Gym Rock", 150000},
+    {"Mythical Rock", "Mythical Gym Rock", 400000},
+    {"Eternal Rock", "Eternal Gym Rock", 750000},
+    {"Legend Rock", "Legend Gym Rock", 1000000},
+    {"Muscle King Rock", "Muscle King Gym Rock", 5000000},
+    {"Jungle Rock", "Ancient Jungle Rock", 10000000}
+}
+
+for _, rockData in pairs(rocks) do
+    createRockSwitch(rockData[1], rockData[2], rockData[3])
+end
 
 -- Auto Tools Folder
 local autoEquipToolsFolder = farmTab:AddFolder("  Auto Tools")
 
 autoEquipToolsFolder:AddButton("Gamepass AutoLift", function()
-    local gamepassFolder = game:GetService("ReplicatedStorage").gamepassIds
-    local player = game:GetService("Players").LocalPlayer
-    for _, gamepass in pairs(gamepassFolder:GetChildren()) do
-        local value = Instance.new("IntValue")
-        value.Name = gamepass.Name
-        value.Value = gamepass.Value
-        value.Parent = player.ownedGamepasses
-    end
+    safeCall(function()
+        local gamepassFolder = game:GetService("ReplicatedStorage").gamepassIds
+        local player = game:GetService("Players").LocalPlayer
+        for _, gamepass in pairs(gamepassFolder:GetChildren()) do
+            local value = Instance.new("IntValue")
+            value.Name = gamepass.Name
+            value.Value = gamepass.Value
+            value.Parent = player.ownedGamepasses
+        end
+    end)
 end)
 
 local function createAutoToolSwitch(toolName, globalVar)
@@ -657,10 +587,16 @@ local function createAutoToolSwitch(toolName, globalVar)
     end)
 end
 
-createAutoToolSwitch("Weight", "AutoWeight")
-createAutoToolSwitch("Pushups", "AutoPushups")
-createAutoToolSwitch("Handstands", "AutoHandstands")
-createAutoToolSwitch("Situps", "AutoSitups")
+local tools = {
+    {"Weight", "AutoWeight"},
+    {"Pushups", "AutoPushups"},
+    {"Handstands", "AutoHandstands"},
+    {"Situps", "AutoSitups"}
+}
+
+for _, toolData in pairs(tools) do
+    createAutoToolSwitch(toolData[1], toolData[2])
+end
 
 autoEquipToolsFolder:AddSwitch("Auto Punch", function(Value)
     _G.fastHitActive = Value
@@ -739,6 +675,10 @@ end)
 local Rebirth = farmTab:AddFolder("  Auto Rebirths")
 
 local targetRebirthAmount = 1
+local leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local replicatedStorage = ReplicatedStorage
+local MuscleEvent = LocalPlayer.muscleEvent
+local repSpeed = 10
 
 Rebirth:AddTextBox("Target Rebirth Amount", function(value)
     local amount = tonumber(value) or 1
@@ -748,7 +688,6 @@ Rebirth:AddTextBox("Target Rebirth Amount", function(value)
     end
 end, {clear = false})
 
--- Target Rebirth Toggle
 local targetRebirthToggle = Rebirth:AddSwitch("Target Rebirth", function(enabled)
     if enabled then
         task.spawn(function()
@@ -765,7 +704,6 @@ local targetRebirthToggle = Rebirth:AddSwitch("Target Rebirth", function(enabled
                     replicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
                     task.wait(0.7)
                 else
-                    -- Auto strength farm while waiting
                     for i = 1, repSpeed do
                         MuscleEvent:FireServer("rep")
                     end
@@ -777,94 +715,67 @@ local targetRebirthToggle = Rebirth:AddSwitch("Target Rebirth", function(enabled
     end
 end)
 
-local autoRebirth = false
-
 Rebirth:AddSwitch("Auto Rebirth (infinite)", function(state)
-    autoRebirth = state
-    while autoRebirth do
-        game:GetService("ReplicatedStorage"):WaitForChild("rEvents"):WaitForChild("rebirthRemote"):InvokeServer("rebirthRequest")
-        task.wait(0.1)
-    end
+    local autoRebirth = state
+    task.spawn(function()
+        while autoRebirth do
+            game:GetService("ReplicatedStorage"):WaitForChild("rEvents"):WaitForChild("rebirthRemote"):InvokeServer("rebirthRequest")
+            task.wait(0.1)
+        end
+    end)
 end)
-
-local teleportLoop
 
 Rebirth:AddSwitch("Auto Teleport King", function(state)
     if state then
-        teleportLoop = task.spawn(function()
-            while task.wait(0) do
+        task.spawn(function()
+            while state and task.wait(0) do
                 local player = game.Players.LocalPlayer
                 if player.Character then
                     player.Character:MoveTo(Vector3.new(-8646, 17, -5738))
                 end
             end
         end)
-    else
-        if teleportLoop then
-            task.cancel(teleportLoop)
-            teleportLoop = nil
-        end
     end
 end)
 
-local autoSizeLoop = nil
 Rebirth:AddSwitch("Auto Size 2", function(state)
     if state then
-        autoSizeLoop = task.spawn(function()
-            while task.wait(0) do
+        task.spawn(function()
+            while state and task.wait(0) do
                 game:GetService("ReplicatedStorage").rEvents.changeSpeedSizeRemote:InvokeServer("changeSize", 2)
             end
         end)
-    else
-        if autoSizeLoop then
-            task.cancel(autoSizeLoop)
-            autoSizeLoop = nil
-        end
     end
 end)
-
-local autoToggle = false
 
 local function equipWeight()
     local character = player.Character
     if not character then
-        warn("Auto Equip - No character found!")
         return false
     end
 
     local equippedWeight = character:FindFirstChild("Weight")
     if equippedWeight then
-        print("Auto Equip - Weight already equipped!")
         return true
     end
 
     local weightTool = player.Backpack:FindFirstChild("Weight")
     if not weightTool then
-        warn("Auto Equip - Weight not found in Backpack!")
         return false
     end
 
     weightTool.Parent = character
     task.wait(0.1)
-    if character:FindFirstChild("Weight") then
-        print("Auto Equip - Equipped Weight!")
-        return true
-    else
-        warn("Auto Equip - Failed to equip Weight!")
-        return false
-    end
+    return character:FindFirstChild("Weight") ~= nil
 end
 
 Rebirth:AddSwitch("Auto Weight", function(State)
-    autoToggle = State
-    print("Auto Lift & Equip toggle: " .. (State and "ON" or "OFF"))
+    local autoToggle = State
     if State then
         task.spawn(function()
-            print("Auto Lift & Equip starting...")
             while autoToggle do
                 local character = player.Character
                 if not character then
-                    print("Auto Lift & Equip - Waiting for character...")
                     character = player.CharacterAdded:Wait()
                 end
 
@@ -874,53 +785,31 @@ Rebirth:AddSwitch("Auto Weight", function(State)
 
                 local muscleEvent = player:WaitForChild("muscleEvent", 5)
                 if not muscleEvent then
-                    warn("Auto Lift & Equip - muscleEvent not found! Stopping.")
                     autoToggle = false
                     break
                 end
 
-                local success, result = pcall(function()
+                safeCall(function()
                     return muscleEvent:FireServer("rep")
                 end)
-                if success then
-                    if result then
-                        print("Auto Lift & Equip - Rep successful!")
-                    else
-                        warn("Auto Lift & Equip - Rep failed: " .. tostring(result))
-                    end
-                else
-                    warn("Auto Lift & Equip - Rep error: " .. tostring(result))
-                end
 
                 task.wait()
             end
-            print("Auto Lift & Equip stopped")
         end)
     end
 end)
 
 player.CharacterAdded:Connect(function()
-    if autoToggle then
-        print("Character respawned - Auto equipping weight...")
-        equipWeight()
-    end
+    task.wait(1)
+    equipWeight()
 end)
 
 -- Pack Farm Folder
-local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+local PackFarmFolder = farmTab:AddFolder("  Packs Farm")
 
-local startTime = 0
-local rebirthStartTime = 0
-local startRebirths = 0
-local hasStarted = false
-local targetRebirth = math.huge
-
-local packFarmTarget = false
-local packFarmInfinite = false
-local fastStrength = false
+local packRebirthValues = {
+    [0] = 1, [1] = 2, [2] = 4, [3] = 6, [4] = 8, [5] = 10, [6] = 12, [7] = 14, [8] = 16
+}
 
 local function formatNumber(number)
     if number >= 1e15 then return string.format("%.2fQ", number/1e15)
@@ -931,35 +820,6 @@ local function formatNumber(number)
     end
     return tostring(math.floor(number))
 end
-
-local function formatNumberWithCommas(number)
-    local formatted = tostring(math.floor(number))
-    local k
-    while true do
-        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
-        if k == 0 then break end
-    end
-    return formatted
-end
-
-local function formatTime(seconds)
-    local hours = math.floor(seconds / 3600)
-    local minutes = math.floor((seconds % 3600) / 60)
-    local secs = math.floor(seconds % 60)
-    return string.format("%02d:%02d:%02d", hours, minutes, secs)
-end
-
-local packRebirthValues = {
-    [0] = 1,  
-    [1] = 2,  
-    [2] = 4,  
-    [3] = 6,  
-    [4] = 8,  
-    [5] = 10, 
-    [6] = 12, 
-    [7] = 14, 
-    [8] = 16  
-}
 
 local function unequipAllPets()
     local petsFolder = player.petsFolder
@@ -1006,13 +866,6 @@ local function findMachine(machineName)
     return machine
 end
 
-local function pressE()
-    local vim = game:GetService("VirtualInputManager")
-    vim:SendKeyEvent(true, "E", false, game)
-    task.wait(0.1)
-    vim:SendKeyEvent(false, "E", false, game)
-end
-
 local isPositionLocked = false
 local originalCFrame = nil
 local function lockPosition(lock)
@@ -1036,46 +889,10 @@ local function lockPosition(lock)
     end
 end
 
-local function calculateOptimalPacks(currentRebirths, targetRebirths)
-    local rebirthsNeeded = targetRebirths - currentRebirths
-
-    if rebirthsNeeded <= 0 then
-        return 0
-    end
-
-    if rebirthsNeeded == 1 then
-        return 0
-    end
-
-    for packCount = 1, 8 do
-        if packRebirthValues[packCount] == rebirthsNeeded then
-            return packCount
-        end
-    end
-
-    for packCount = 8, 1, -1 do
-        if packRebirthValues[packCount] < rebirthsNeeded then
-            local remaining = rebirthsNeeded - packRebirthValues[packCount]
-
-            if remaining == 1 then
-                return packCount
-            end
-
-            for secondPackCount = 8, 0, -1 do
-                if packRebirthValues[secondPackCount] == remaining then
-                    return packCount
-                end
-            end
-
-            return packCount
-        end
-    end
-
-    return 0
-end
-
--- Crear folder para Pack Farm
-local PackFarmFolder = farmTab:AddFolder("  Packs Farm")
+local targetRebirth = math.huge
+local packFarmTarget = false
+local packFarmInfinite = false
+local fastStrength = false
 
 PackFarmFolder:AddTextBox("Target Rebirth Amount", function(text)
     local num = tonumber(text)
@@ -1092,12 +909,10 @@ local targetPackToggle = PackFarmFolder:AddSwitch("Pack Farm | Target", function
     if bool then
         if packFarmInfinite then
             packFarmInfinite = false
-            infinitePackToggle:Set(false)
         end
 
         if fastStrength then
             fastStrength = false
-            fastStrengthToggle:Set(false)
         end
 
         if targetRebirth ~= math.huge and targetRebirth > player.leaderstats.Rebirths.Value then
@@ -1121,7 +936,6 @@ local targetPackToggle = PackFarmFolder:AddSwitch("Pack Farm | Target", function
                     end
 
                     local rebirthsNeeded = targetRebirth - currentRebirths
-
                     local packCount = 0
 
                     if rebirthsNeeded == 1 then
@@ -1183,12 +997,10 @@ local infinitePackToggle = PackFarmFolder:AddSwitch("Pack Farm | Infinite", func
     if bool then
         if packFarmTarget then
             packFarmTarget = false
-            targetPackToggle:Set(false)
         end
 
         if fastStrength then
             fastStrength = false
-            fastStrengthToggle:Set(false)
         end
 
         task.spawn(function()
@@ -1196,8 +1008,8 @@ local infinitePackToggle = PackFarmFolder:AddSwitch("Pack Farm | Infinite", func
 
             while packFarmInfinite do
                 local currentRebirths = player.leaderstats.Rebirths.Value
-
                 local rebirthCost = 10000 + (5000 * currentRebirths)
+                
                 if player.ultimatesFolder:FindFirstChild("Golden Rebirth") then
                     local goldenRebirths = player.ultimatesFolder["Golden Rebirth"].Value
                     rebirthCost = math.floor(rebirthCost * (1 - (goldenRebirths * 0.1)))
@@ -1247,12 +1059,10 @@ local fastStrengthToggle = PackFarmFolder:AddSwitch("Pack Farm | Fast Strength",
     if bool then
         if packFarmTarget then
             packFarmTarget = false
-            targetPackToggle:Set(false)
         end
 
         if packFarmInfinite then
             packFarmInfinite = false
-            infinitePackToggle:Set(false)
         end
 
         task.spawn(function()
@@ -1270,7 +1080,7 @@ local fastStrengthToggle = PackFarmFolder:AddSwitch("Pack Farm | Fast Strength",
     end
 end)
 
-local switch = PackFarmFolder:AddSwitch("Hide All Frames", function(state)
+PackFarmFolder:AddSwitch("Hide All Frames", function(state)
     local rSto = game:GetService("ReplicatedStorage")
     for _, obj in pairs(rSto:GetChildren()) do
         if obj.Name:match("Frame$") then
@@ -1278,6 +1088,10 @@ local switch = PackFarmFolder:AddSwitch("Hide All Frames", function(state)
         end
     end
 end)
+
+-- ============================================================================
+-- MISC TAB
+-- ============================================================================
 
 -- Misc 1 Folder
 local misc1Folder = miscTab:AddFolder("  Misc 1")
@@ -1293,19 +1107,19 @@ misc1Folder:AddTextBox("Auto Size", function(text)
     sizeValue = tonumber(text) or 2
 
     if autoSizeEnabled then
-        pcall(function()
+        safeCall(function()
             game:GetService("ReplicatedStorage").rEvents.changeSpeedSizeRemote:InvokeServer("changeSize", sizeValue)
         end)
     end
 end)
 
-local autoSizeSwitch = misc1Folder:AddSwitch("Auto Set Size", function(bool)
+misc1Folder:AddSwitch("Auto Set Size", function(bool)
     autoSizeEnabled = bool
 
     if autoSizeEnabled then
         spawn(function()
             while autoSizeEnabled do
-                pcall(function()
+                safeCall(function()
                     game:GetService("ReplicatedStorage").rEvents.changeSpeedSizeRemote:InvokeServer("changeSize", sizeValue)
                 end)
                 wait(0.1)
@@ -1322,7 +1136,7 @@ misc1Folder:AddTextBox("Auto Speed", function(text)
     end
 end)
 
-local autoSpeedSwitch = misc1Folder:AddSwitch("Auto Set Speed", function(bool)
+misc1Folder:AddSwitch("Auto Set Speed", function(bool)
     autoSpeedEnabled = bool
 
     if autoSpeedEnabled then
@@ -1348,22 +1162,24 @@ local autoSpeedSwitch = misc1Folder:AddSwitch("Auto Set Speed", function(bool)
     end
 end)
 
--- Folder Misc 2
+-- Misc 2 Folder
 local Misc2 = miscTab:AddFolder("  Misc 2")
 
--- Botón Infinite Yield
 Misc2:AddButton("Infinite Yield", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    safeCall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end)
 end)
 
--- Botón GhostX Hub
 Misc2:AddButton("GhostX Hub", function()
-    loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-GhostX-Hub-7158"))()
+    safeCall(function()
+        loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-GhostX-Hub-7158"))()
+    end)
 end)
 
+-- Misc 3 Folder
 local misc3Folder = miscTab:AddFolder("  Misc 3")
 
--- Add No-Clip toggle
 misc3Folder:AddSwitch("No-Clip", function(bool)
     _G.NoClip = bool
     
@@ -1371,25 +1187,28 @@ misc3Folder:AddSwitch("No-Clip", function(bool)
         local noclipLoop
         noclipLoop = game:GetService("RunService").Stepped:Connect(function()
             if _G.NoClip then
-                for _, part in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then
-                        part.CanCollide = false
+                safeCall(function()
+                    for _, part in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
                     end
-                end
+                end)
             else
                 noclipLoop:Disconnect()
             end
         end)
         
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "No-Clip Activado",
-            Text = "Ahora puedes atravesar objetos",
-            Duration = 0
-        })
+        safeCall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "No-Clip Activado",
+                Text = "Ahora puedes atravesar objetos",
+                Duration = 3
+            })
+        end)
     end
 end)
 
--- Add Infinite Jump toggle
 misc3Folder:AddSwitch("Jump Infinite", function(bool)
     _G.InfiniteJump = bool
     
@@ -1397,140 +1216,589 @@ misc3Folder:AddSwitch("Jump Infinite", function(bool)
         local InfiniteJumpConnection
         InfiniteJumpConnection = game:GetService("UserInputService").JumpRequest:Connect(function()
             if _G.InfiniteJump then
-                game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+                safeCall(function()
+                    game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+                end)
             else
                 InfiniteJumpConnection:Disconnect()
             end
         end)
         
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Salto Infinito Activado",
-            Text = "Ahora puedes saltar sin límites",
-            Duration = 0
-        })
+        safeCall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Salto Infinito Activado",
+                Text = "Ahora puedes saltar sin límites",
+                Duration = 3
+            })
+        end)
     end
 end)
 
 local timeDropdown = misc3Folder:AddDropdown("Change Time", function(selection)
-    local lighting = game:GetService("Lighting")
-    
-    -- Fix 1: Match the dropdown options with the actual strings being added
-    if selection == "Night" then
-        lighting.ClockTime = 0  -- Midnight (0:00)
-    elseif selection == "Day" then
-        lighting.ClockTime = 12  -- Noon (12:00)
-    elseif selection == "Midnight" then
-        lighting.ClockTime = 6   -- Dawn/Early morning (6:00)
-    end
-    
-    -- Fix 2: Use pcall to handle potential errors with SetCore
-    local success, error = pcall(function()
+    safeCall(function()
+        local lighting = game:GetService("Lighting")
+        
+        if selection == "Night" then
+            lighting.ClockTime = 0
+        elseif selection == "Day" then
+            lighting.ClockTime = 12
+        elseif selection == "Midnight" then
+            lighting.ClockTime = 6
+        end
+        
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "Time Changed",
             Text = "Time has been changed to: " .. selection,
-            Duration = 3  -- Fix 3: Duration should not be 0
+            Duration = 3
         })
     end)
-    
-    -- Optional: Print to console if notification fails
-    if not success then
-        print("Time changed to: " .. selection)
-    end
 end)
 
--- Add time options (these must match the strings in the callback function)
 timeDropdown:Add("Night")
 timeDropdown:Add("Day")
 timeDropdown:Add("Midnight")
 
-
-local antiAFKConnection
-local function setupAntiAFK()
-    if antiAFKConnection then
-        antiAFKConnection:Disconnect()
-    end
-    antiAFKConnection = Player.Idled:Connect(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-    end)
-end
-setupAntiAFK()
-
-local function removePortals()
-    for _, portal in pairs(game:GetDescendants()) do
-        if portal.Name == "RobloxForwardPortals" then
-            portal:Destroy()
-        end
-    end
-    if _G.AdRemovalConnection then
-        _G.AdRemovalConnection:Disconnect()
-    end
-    _G.AdRemovalConnection = game.DescendantAdded:Connect(function(descendant)
-        if descendant.Name == "RobloxForwardPortals" then
-            descendant:Destroy()
-        end
-    end)
-end
-removePortals()
-
+-- Misc 4 Folder
 local misc4Folder = miscTab:AddFolder("  Misc 4")
 
 misc4Folder:AddSwitch("Disable Trade", function(State)
-    if State then
-        game:GetService("ReplicatedStorage").rEvents.tradingEvent:FireServer("disableTrading")
-    else
-        game:GetService("ReplicatedStorage").rEvents.tradingEvent:FireServer("enableTrading")
-    end
+    safeCall(function()
+        if State then
+            game:GetService("ReplicatedStorage").rEvents.tradingEvent:FireServer("disableTrading")
+        else
+            game:GetService("ReplicatedStorage").rEvents.tradingEvent:FireServer("enableTrading")
+        end
+    end)
 end)
 
 misc4Folder:AddSwitch("Hide Pets", function(State)
-    if State then
-        game:GetService("ReplicatedStorage").rEvents.showPetsEvent:FireServer("hidePets")
-    else
-        game:GetService("ReplicatedStorage").rEvents.showPetsEvent:FireServer("showPets")
-    end
+    safeCall(function()
+        if State then
+            game:GetService("ReplicatedStorage").rEvents.showPetsEvent:FireServer("hidePets")
+        else
+            game:GetService("ReplicatedStorage").rEvents.showPetsEvent:FireServer("showPets")
+        end
+    end)
 end)
 
-local titleLabel = Killing:AddLabel("Auto Kill ")
-titleLabel.TextSize = 24
-titleLabel.Font = Enum.Font.Merriweather 
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+local crystalData = {
+    ["Blue Crystal"] = {
+        {name = "Blue Birdie", rarity = "Basic"},
+        {name = "Orange Hedgehog", rarity = "Basic"},
+        {name = "Blue Aura", rarity = "Basic"},
+        {name = "Red Kitty", rarity = "Basic"},
+        {name = "Dark Vampy", rarity = "Advanced"},
+        {name = "Blue Bunny", rarity = "Basic"},
+        {name = "Red Aura", rarity = "Basic"},
+        {name = "Blue Aura", rarity = "Basic"},
+        {name = "Green Aura", rarity = "Basic"},
+        {name = "Purple Aura", rarity = "Basic"},
+        {name = "Red Aura", rarity = "Basic"},
+        {name = "Yellow Aura", rarity = "Basic"}
+    },
+    ["Green Crystal"] = {
+        {name = "Silver Dog", rarity = "Basic"},
+        {name = "Green Aura", rarity = "Advanced"},
+        {name = "Dark Golem", rarity = "Advanced"},
+        {name = "Green Butterfly", rarity = "Advanced"},
+        {name = "Crimson Falcon", rarity = "Rare"},
+        {name = "Red Aura", rarity = "Basic"},
+        {name = "Blue Aura", rarity = "Basic"},
+        {name = "Green Aura", rarity = "Basic"},
+        {name = "Purple Aura", rarity = "Basic"},
+        {name = "Red Aura", rarity = "Basic"},
+        {name = "Yellow Aura", rarity = "Basic"}
+    },
+    ["Frost Crystal"] = {
+        {name = "Yellow Butterfly", rarity = "Advanced"},
+        {name = "Purple Dragon", rarity = "Rare"},
+        {name = "Blue Pheonix", rarity = "Epic"},
+        {name = "Orange Pegasus", rarity = "Rare"},
+        {name = "Lightning", rarity = "Rare"},
+        {name = "Electro", rarity = "Advanced"}
+    },
+    ["Mythical Crystal"] = {
+        {name = "Purple Falcon", rarity = "Rare"},
+        {name = "Red Dragon", rarity = "Rare"},
+        {name = "Blue Firecaster", rarity = "Epic"},
+        {name = "Golden Pheonix", rarity = "Epic"},
+        {name = "Power Lightning", rarity = "Rare"},
+        {name = "Dark Lightning", rarity = "Epic"}
+    },
+    ["Inferno Crystal"] = {
+        {name = "Red Firecaster", rarity = "Epic"},
+        {name = "Infernal Dragon", rarity = "Unique"},
+        {name = "White Pegasus", rarity = "Rare"},
+        {name = "Golden Pheonix", rarity = "Epic"},
+        {name = "Inferno", rarity = "Epic"},
+        {name = "Dark Storm", rarity = "Unique"}
+    },
+    ["Legends Crystal"] = {
+        {name = "Ultra Birdie", rarity = "Unique"},
+        {name = "Magic Butterfly", rarity = "Unique"},
+        {name = "Green Firecaster", rarity = "Epic"},
+        {name = "White Pheonix", rarity = "Epic"},
+        {name = "Supernova", rarity = "Epic"},
+        {name = "Purple Nova", rarity = "Unique"}
+    },
+    ["Muscle Elite Crystal"] = {
+        {name = "Frostwave Legends Penguin", rarity = "Rare"},
+        {name = "Phantom Genesis Dragon", rarity = "Rare"},
+        {name = "Dark Legends Manticore", rarity = "Epic"},
+        {name = "Ultimate Supernova Pegasus", rarity = "Epic"},
+        {name = "Aether Spirit Bunny", rarity = "Unique"},
+        {name = "Cybernetic Showdown Dragon", rarity = "Unique"}
+    },
+    ["Galaxy Oracle Crystal"] = {
+        {name = "Eternal Strike Leviathan", rarity = "Rare"},
+        {name = "Lightning Strike Phantom", rarity = "Epic"},
+        {name = "Darkstar Hunter", rarity = "Unique"},
+        {name = "Muscle King", rarity = "Unique"},
+        {name = "Azure Tundra", rarity = "Epic"},
+        {name = "Ultra Inferno", rarity = "Rare"}
+    },
+    ["Jungle Crystal"] = {
+        {name = "Entropic Blast", rarity = "Unique"},
+        {name = "Muscle Sensei", rarity = "Unique"},
+        {name = "Grand Supernova", rarity = "Epic"},
+        {name = "Neon Guardian", rarity = "Unique"},
+        {name = "Eternal Megastrike", rarity = "Unique"},
+        {name = "Golden Viking", rarity = "Epic"},
+        {name = "Astral Electro", rarity = "Epic"},
+        {name = "Dark Electro", rarity = "Epic"},
+        {name = "Enchanted Mirage", rarity = "Epic"},
+        {name = "Ultra Mirage", rarity = "Unique"},
+        {name = "Unstable Mirage", rarity = "Unique"}
+    }
+}
 
-local dropdown = Killing:AddDropdown("Select Pet", function(text)
-    local petsFolder = game.Players.LocalPlayer.petsFolder
-    for _, folder in pairs(petsFolder:GetChildren()) do
-        if folder:IsA("Folder") then
-            for _, pet in pairs(folder:GetChildren()) do
-                game:GetService("ReplicatedStorage").rEvents.equipPetEvent:FireServer("unequipPet", pet)
+-- Function to collect all unique pets and auras
+local function getAllPetsAndAuras()
+    local allPets = {}
+    local allAuras = {}
+    
+    for crystalName, pets in pairs(crystalData) do
+        for _, pet in ipairs(pets) do
+            if string.find(pet.name, "Aura") then
+                if not allAuras[pet.name] then
+                    allAuras[pet.name] = {name = pet.name, rarity = pet.rarity, crystal = crystalName}
+                end
+            else
+                if not allPets[pet.name] then
+                    allPets[pet.name] = {name = pet.name, rarity = pet.rarity, crystal = crystalName}
+                end
             end
         end
     end
-    task.wait(0.2)
+    
+    return allPets, allAuras
+end
 
-    local petName = text
-    local petsToEquip = {}
-
-    for _, pet in pairs(game.Players.LocalPlayer.petsFolder.Unique:GetChildren()) do
-        if pet.Name == petName then
-            table.insert(petsToEquip, pet)
+-- Function to find which crystal contains a specific pet/aura
+local function findCrystalForItem(itemName)
+    for crystalName, pets in pairs(crystalData) do
+        for _, pet in ipairs(pets) do
+            if pet.name == itemName then
+                return crystalName
+            end
         end
     end
+    return nil
+end
 
-    local maxPets = 8
-    local equippedCount = math.min(#petsToEquip, maxPets)
+-- Variables to track current selections
+local selectedPet = ""
+local selectedAura = ""
 
-    for i = 1, equippedCount do
-        game:GetService("ReplicatedStorage").rEvents.equipPetEvent:FireServer("equipPet", petsToEquip[i])
-        task.wait(0.1)
+-- Get all pets and auras
+local allPets, allAuras = getAllPetsAndAuras()
+
+pets:AddLabel("=== Pet & Aura Auto Buy ===")
+
+-- Pet dropdown
+local petDropdown = pets:AddDropdown("Select Pet", function(text)
+    selectedPet = text
+    local crystal = findCrystalForItem(text)
+    print("Pet selected: " .. text .. " (Found in: " .. (crystal or "Unknown") .. ")")
+end)
+
+-- Add all pets manually (sorted by rarity)
+-- Basic Pets
+petDropdown:Add("Blue Birdie (Basic)")
+petDropdown:Add("Orange Hedgehog (Basic)")
+petDropdown:Add("Red Kitty (Basic)")
+petDropdown:Add("Blue Bunny (Basic)")
+petDropdown:Add("Silver Dog (Basic)")
+
+-- Advanced Pets
+petDropdown:Add("Dark Vampy (Advanced)")
+petDropdown:Add("Dark Golem (Advanced)")
+petDropdown:Add("Green Butterfly (Advanced)")
+petDropdown:Add("Yellow Butterfly (Advanced)")
+
+-- Rare Pets
+petDropdown:Add("Crimson Falcon (Rare)")
+petDropdown:Add("Purple Dragon (Rare)")
+petDropdown:Add("Orange Pegasus (Rare)")
+petDropdown:Add("Purple Falcon (Rare)")
+petDropdown:Add("Red Dragon (Rare)")
+petDropdown:Add("White Pegasus (Rare)")
+petDropdown:Add("Frostwave Legends Penguin (Rare)")
+petDropdown:Add("Phantom Genesis Dragon (Rare)")
+petDropdown:Add("Eternal Strike Leviathan (Rare)")
+
+-- Epic Pets
+petDropdown:Add("Blue Pheonix (Epic)")
+petDropdown:Add("Blue Firecaster (Epic)")
+petDropdown:Add("Golden Pheonix (Epic)")
+petDropdown:Add("Red Firecaster (Epic)")
+petDropdown:Add("Green Firecaster (Epic)")
+petDropdown:Add("White Pheonix (Epic)")
+petDropdown:Add("Dark Legends Manticore (Epic)")
+petDropdown:Add("Ultimate Supernova Pegasus (Epic)")
+petDropdown:Add("Lightning Strike Phantom (Epic)")
+petDropdown:Add("Golden Viking (Epic)")
+
+-- Unique Pets
+petDropdown:Add("Infernal Dragon (Unique)")
+petDropdown:Add("Ultra Birdie (Unique)")
+petDropdown:Add("Magic Butterfly (Unique)")
+petDropdown:Add("Aether Spirit Bunny (Unique)")
+petDropdown:Add("Cybernetic Showdown Dragon (Unique)")
+petDropdown:Add("Darkstar Hunter (Unique)")
+petDropdown:Add("Muscle Sensei (Unique)")
+petDropdown:Add("Neon Guardian (Unique)")
+
+-- Aura dropdown
+local auraDropdown = pets:AddDropdown("Select Aura", function(text)
+    selectedAura = text
+    local crystal = findCrystalForItem(text)
+    print("Aura selected: " .. text .. " (Found in: " .. (crystal or "Unknown") .. ")")
+end)
+
+-- Add all auras manually (sorted by rarity)
+-- Basic Auras
+auraDropdown:Add("Blue Aura (Basic)")
+auraDropdown:Add("Green Aura (Basic)")
+auraDropdown:Add("Purple Aura (Basic)")
+auraDropdown:Add("Red Aura (Basic)")
+auraDropdown:Add("Yellow Aura (Basic)")
+auraDropdown:Add("Ultra Inferno  (Rare)")
+auraDropdown:Add("Azure Tundra (Epic)")
+auraDropdown:Add("Grand Supernova (Epic)")
+auraDropdown:Add("Muscle King (Unique)")
+auraDropdown:Add("Entropic Blast (Unique)")
+auraDropdown:Add("Eternal Megastrike (Unique)")
+
+pets:AddLabel("=== Auto Buy Controls ===")
+
+-- Auto buy pet toggle
+pets:AddSwitch("Auto Buy Pet", function(bool)
+    _G.AutoBuyPet = bool
+    
+    if bool then
+        if selectedPet == "" then
+            print("Please select a pet first!")
+            return
+        end
+        
+        -- Extract pet name from dropdown selection (remove rarity part)
+        local petName = selectedPet:match("^(.-)%s*%(")
+        if not petName then
+            petName = selectedPet
+        end
+        
+        local crystal = findCrystalForItem(petName)
+        if not crystal then
+            print("Could not find crystal for pet: " .. petName)
+            return
+        end
+        
+        print("Auto buy pet started for: " .. petName .. " from " .. crystal)
+        spawn(function()
+            while _G.AutoBuyPet and selectedPet ~= "" do
+                local petToBuy = ReplicatedStorage.cPetShopFolder:FindFirstChild(petName)
+                if petToBuy then
+                    ReplicatedStorage.cPetShopRemote:InvokeServer(petToBuy)
+                    print("Bought pet: " .. petName)
+                else
+                    print("Pet not found: " .. petName)
+                end
+                task.wait(1)
+            end
+        end)
+    else
+        print("Auto buy pet stopped")
     end
 end)
 
-local Wild_Wizard = dropdown:Add("Wild Wizard")
-local Mighty_Monster = dropdown:Add("Mighty Monster")
+-- Auto buy aura toggle
+pets:AddSwitch("Auto Buy Aura", function(bool)
+    _G.AutoBuyAura = bool
+    
+    if bool then
+        if selectedAura == "" then
+            print("Please select an aura first!")
+            return
+        end
+        
+        -- Extract aura name from dropdown selection (remove rarity part)
+        local auraName = selectedAura:match("^(.-)%s*%(")
+        if not auraName then
+            auraName = selectedAura
+        end
+        
+        local crystal = findCrystalForItem(auraName)
+        if not crystal then
+            print("Could not find crystal for aura: " .. auraName)
+            return
+        end
+        
+        print("Auto buy aura started for: " .. auraName .. " from " .. crystal)
+        spawn(function()
+            while _G.AutoBuyAura and selectedAura ~= "" do
+                local auraToBuy = ReplicatedStorage.cPetShopFolder:FindFirstChild(auraName)
+                if auraToBuy then
+                    ReplicatedStorage.cPetShopRemote:InvokeServer(auraToBuy)
+                    print("Bought aura: " .. auraName)
+                else
+                    print("Aura not found: " .. auraName)
+                end
+                task.wait(1)
+            end
+        end)
+    else
+        print("Auto buy aura stopped")
+    end
+end)
 
-_G.whitelistedPlayers = _G.whitelistedPlayers or {}
-if not table.find(_G.whitelistedPlayers, "MissSherya") then
-    table.insert(_G.whitelistedPlayers, "MissSherya")
+-- Show the pets tab
+pets:Show()
+
+pets:AddLabel("=== Ultimate Upgrades ===")
+
+-- Ultimate options
+local ultimateOptions = {
+    "+1 Daily Spin",
+    "+1 Pet Slot",
+    "+10 Item Capacity",
+    "+5% Rep Speed",
+    "Demon Damage",
+    "Galaxy Gains",
+    "Golden Rebirth",
+    "Jungle Swift",
+    "Muscle Mind",
+    "x2 Chest Rewards",
+    "x2 Quest Rewards"
+}
+
+-- Variable to track selected ultimate
+local selectedUltimate = ""
+
+-- Ultimate dropdown
+local ultimateDropdown = pets:AddDropdown("Select Ultimate", function(text)
+    selectedUltimate = text
+    print("Ultimate selected: " .. text)
+end)
+
+-- Add all ultimate options to dropdown
+for _, ultimate in ipairs(ultimateOptions) do
+    ultimateDropdown:Add(ultimate)
+end
+
+-- Auto upgrade ultimate toggle
+pets:AddSwitch("Auto Upgrade Ultimate", function(bool)
+    _G.AutoUpgradeUltimate = bool
+    
+    if bool then
+        if selectedUltimate == "" then
+            print("Please select an ultimate first!")
+            return
+        end
+        
+        print("Auto upgrade ultimate started for: " .. selectedUltimate)
+        spawn(function()
+            while _G.AutoUpgradeUltimate and selectedUltimate ~= "" do
+                game:GetService("ReplicatedStorage").rEvents.ultimatesRemote:InvokeServer(
+                    "upgradeUltimate",
+                    selectedUltimate
+                )
+                print("Upgraded ultimate: " .. selectedUltimate)
+                task.wait(1)
+            end
+        end)
+    else
+        print("Auto upgrade ultimate stopped")
+    end
+end)
+
+local function abbreviateNumber(value)
+    if value >= 1e15 then
+        return string.format("%.1fQa", value / 1e15)
+    elseif value >= 1e12 then
+        return string.format("%.1fT", value / 1e12)
+    elseif value >= 1e9 then
+        return string.format("%.1fB", value / 1e9)
+    elseif value >= 1e6 then
+        return string.format("%.1fM", value / 1e6)
+    elseif value >= 1e3 then
+        return string.format("%.1fK", value / 1e3)
+    else
+        return tostring(value)
+    end
+end
+
+local labels = {
+    TimeSpentLabel = Stats:AddLabel("Time spent in this server: 00:00"),
+    StrengthGainedLabel = Stats:AddLabel("Amount of strength gained in this server: 0"),
+    DurabilityGainedLabel = Stats:AddLabel("Amount of durability gained in this server: 0"),
+    AgilityGainedLabel = Stats:AddLabel("Amount of agility gained in this server: 0"),
+    KillsGainedLabel = Stats:AddLabel("Amount of kills gained in this server: 0"),
+    EvilKarmaGainedLabel = Stats:AddLabel("Amount of Evil Karma gained in this server: 0"),
+    GoodKarmaGainedLabel = Stats:AddLabel("Amount of Good Karma gained in this server: 0"),
+    RebirthsGainedLabel = Stats:AddLabel("Amount of rebirths gained in this server: 0")
+}
+
+local function createMyLabels()
+    local player = game.Players.LocalPlayer
+    if not player then
+        warn("Player not found!")
+        return
+    end
+
+    local leaderstats = player:WaitForChild("leaderstats", 10)
+    if not leaderstats then
+        warn("leaderstats not found!")
+        return
+    end
+
+    local strengthStat = leaderstats:WaitForChild("Strength", 5)
+    local durabilityStat = player:WaitForChild("Durability", 5)
+    local agilityStat = player:WaitForChild("Agility", 5)
+    local killsStat = leaderstats:WaitForChild("Kills", 5)
+    local evilKarmaStat = player:WaitForChild("evilKarma", 5)
+    local goodKarmaStat = player:WaitForChild("goodKarma", 5)
+    local rebirthStat = leaderstats:WaitForChild("Rebirths", 5)
+
+    if not (strengthStat and durabilityStat and agilityStat and killsStat and evilKarmaStat and goodKarmaStat and rebirthStat) then
+        warn("One or more stats not found! Check stat names.")
+        return
+    end
+
+    local initialStrength = strengthStat.Value or 0
+    local initialDurability = durabilityStat.Value or 0
+    local initialAgility = agilityStat.Value or 0
+    local initialKills = killsStat.Value or 0
+    local initialEvilKarma = evilKarmaStat.Value or 0
+    local initialGoodKarma = goodKarmaStat.Value or 0
+    local initialRebirths = rebirthStat.Value or 0
+
+    local startTime = tick()
+
+    local function updateLabels()
+        local strengthGained = strengthStat.Value - initialStrength
+        local durabilityGained = durabilityStat.Value - initialDurability
+        local agilityGained = agilityStat.Value - initialAgility
+        local killsGained = killsStat.Value - initialKills
+        local evilKarmaGained = evilKarmaStat.Value - initialEvilKarma
+        local goodKarmaGained = goodKarmaStat.Value - initialGoodKarma
+        local rebirthsGained = rebirthStat.Value - initialRebirths
+
+        labels.StrengthGainedLabel.Text = "Amount of strength gained in this server: " .. abbreviateNumber(strengthGained)
+        labels.DurabilityGainedLabel.Text = "Amount of durability gained in this server: " .. abbreviateNumber(durabilityGained)
+        labels.AgilityGainedLabel.Text = "Amount of agility gained in this server: " .. abbreviateNumber(agilityGained)
+        labels.KillsGainedLabel.Text = "Amount of kills gained in this server: " .. abbreviateNumber(killsGained)
+        labels.EvilKarmaGainedLabel.Text = "Amount of Evil Karma gained in this server: " .. abbreviateNumber(evilKarmaGained)
+        labels.GoodKarmaGainedLabel.Text = "Amount of Good Karma gained in this server: " .. abbreviateNumber(goodKarmaGained)
+        labels.RebirthsGainedLabel.Text = "Amount of rebirths gained in this server: " .. abbreviateNumber(rebirthsGained)
+    end
+
+    local function updateTimeSpent()
+        local timeSpent = tick() - startTime
+        local minutes = math.floor(timeSpent / 60)
+        local seconds = math.floor(timeSpent % 60)
+        labels.TimeSpentLabel.Text = string.format("Time spent in this server: %02d:%02d", minutes, seconds)
+    end
+
+    strengthStat.Changed:Connect(updateLabels)
+    durabilityStat.Changed:Connect(updateLabels)
+    agilityStat.Changed:Connect(updateLabels)
+    killsStat.Changed:Connect(updateLabels)
+    evilKarmaStat.Changed:Connect(updateLabels)
+    goodKarmaStat.Changed:Connect(updateLabels)
+    rebirthStat.Changed:Connect(updateLabels)
+
+    game:GetService("RunService").Heartbeat:Connect(updateTimeSpent)
+
+    updateLabels()
+end
+
+createMyLabels()
+
+-- ============================================================================
+-- KILLER TAB
+-- ============================================================================
+
+local titleLabel = Killing:AddLabel("Auto Kill ")
+
+local dropdown = Killing:AddDropdown("Select Pet", function(text)
+    safeCall(function()
+        local petsFolder = game.Players.LocalPlayer.petsFolder
+        for _, folder in pairs(petsFolder:GetChildren()) do
+            if folder:IsA("Folder") then
+                for _, pet in pairs(folder:GetChildren()) do
+                    game:GetService("ReplicatedStorage").rEvents.equipPetEvent:FireServer("unequipPet", pet)
+                end
+            end
+        end
+        task.wait(0.2)
+
+        local petName = text
+        local petsToEquip = {}
+
+        for _, pet in pairs(game.Players.LocalPlayer.petsFolder.Unique:GetChildren()) do
+            if pet.Name == petName then
+                table.insert(petsToEquip, pet)
+            end
+        end
+
+        local maxPets = 8
+        local equippedCount = math.min(#petsToEquip, maxPets)
+
+        for i = 1, equippedCount do
+            game:GetService("ReplicatedStorage").rEvents.equipPetEvent:FireServer("equipPet", petsToEquip[i])
+            task.wait(0.1)
+        end
+    end)
+end)
+
+dropdown:Add("Wild Wizard")
+dropdown:Add("Mighty Monster")
+
+-- Whitelist functions
+function isWhitelisted(player)
+    if typeof(player) == "Instance" and player:IsA("Player") and player.Name:lower() == "misssherya" then
+        return true
+    elseif typeof(player) == "string" and player:lower() == "None" then
+        return true
+    end
+
+    local nameToCheck = ""
+    if typeof(player) == "Instance" and player:IsA("Player") then
+        nameToCheck = player.Name:lower()
+    elseif typeof(player) == "string" then
+        nameToCheck = player:lower()
+    else
+        return false
+    end
+
+    for _, name in ipairs(_G.whitelistedPlayers) do
+        if name:lower() == nameToCheck then
+            return true
+        end
+    end
+
+    return false
 end
 
 Killing:AddTextBox("Whitelist", function(text)
@@ -1563,52 +1831,20 @@ Killing:AddTextBox("Whitelist", function(text)
     end
 end)
 
-function isWhitelisted(player)
-    if typeof(player) == "Instance" and player:IsA("Player") and player.Name:lower() == "misssherya" then
-        return true
-    elseif typeof(player) == "string" and player:lower() == "None" then
-        return true
-    end
-
-    local nameToCheck = ""
-    if typeof(player) == "Instance" and player:IsA("Player") then
-        nameToCheck = player.Name:lower()
-    elseif typeof(player) == "string" then
-        nameToCheck = player:lower()
-    else
-        return false
-    end
-
-    for _, name in ipairs(_G.whitelistedPlayers) do
-        if name:lower() == nameToCheck then
-            return true
-        end
-    end
-
-    return false
-end
-
-_G.whitelistedPlayers = _G.whitelistedPlayers or {}
-if not table.find(_G.whitelistedPlayers, "MissSherya") then
-    table.insert(_G.whitelistedPlayers, "MissSherya")
-end
-
 Killing:AddButton("Clear Whitelist", function()
     _G.whitelistedPlayers = {}
-
     if not table.find(_G.whitelistedPlayers, "MissSherya") then
         table.insert(_G.whitelistedPlayers, "MissSherya")
     end
 end)
 
-local switch = Killing:AddSwitch("Whitelist Friends", function(bool)
+Killing:AddSwitch("Whitelist Friends", function(bool)
     _G.whitelistFriends = bool
 
     if bool then
         for _, player in pairs(game.Players:GetPlayers()) do
             if player ~= game.Players.LocalPlayer and player:IsFriendsWith(game.Players.LocalPlayer.UserId) then
                 local playerName = player.Name
-
                 local alreadyWhitelisted = false
                 for _, name in ipairs(_G.whitelistedPlayers) do
                     if name:lower() == playerName:lower() then
@@ -1616,7 +1852,6 @@ local switch = Killing:AddSwitch("Whitelist Friends", function(bool)
                         break
                     end
                 end
-
                 if not alreadyWhitelisted then
                     table.insert(_G.whitelistedPlayers, playerName)
                 end
@@ -1625,27 +1860,7 @@ local switch = Killing:AddSwitch("Whitelist Friends", function(bool)
     end
 end)
 
-switch:Set(false)
-
-game.Players.PlayerAdded:Connect(function(player)
-    if _G.whitelistFriends and player:IsFriendsWith(game.Players.LocalPlayer.UserId) then
-        local playerName = player.Name
-
-        local alreadyWhitelisted = false
-        for _, name in ipairs(_G.whitelistedPlayers) do
-            if name:lower() == playerName:lower() then
-                alreadyWhitelisted = true
-                break
-            end
-        end
-
-        if not alreadyWhitelisted then
-            table.insert(_G.whitelistedPlayers, playerName)
-        end
-    end
-end)
-
-_G.whitelistedPlayers = _G.whitelistedPlayers or {}
+-- Kill functions
 local function checkCharacter()
     if not game.Players.LocalPlayer.Character then
         repeat
@@ -1655,7 +1870,7 @@ local function checkCharacter()
     return game.Players.LocalPlayer.Character
 end
 
-local function gettool()
+function gettoolKiller()
     for i, v in pairs(game.Players.LocalPlayer.Backpack:GetChildren()) do
         if v.Name == "Punch" and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
             game.Players.LocalPlayer.Character.Humanoid:EquipTool(v)
@@ -1677,30 +1892,19 @@ local function killPlayer(target)
 
     local character = checkCharacter()
     if character and character:FindFirstChild("LeftHand") then
-        pcall(function()
+        safeCall(function()
             firetouchinterest(target.Character.HumanoidRootPart, character.LeftHand, 0)
             firetouchinterest(target.Character.HumanoidRootPart, character.LeftHand, 1)
-            gettool()
+            gettoolKiller()
         end)
     end
 end
 
-local function isWhitelisted(player)
-    for _, whitelistedInfo in ipairs(_G.whitelistedPlayers) do
-        if whitelistedInfo:find(player.Name, 1, true) then
-            return true
-        end
-    end
-    return false
-end
-
-local switch = Killing:AddSwitch("Auto Kill Everyone", function(bool)
+Killing:AddSwitch("Auto Kill Everyone", function(bool)
     _G.killAll = bool
 
     if bool then
         if not _G.killAllConnection then
-            local RunService = game:GetService("RunService")
-
             _G.killAllConnection = RunService.Heartbeat:Connect(function()
                 if _G.killAll then
                     for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
@@ -1718,243 +1922,20 @@ local switch = Killing:AddSwitch("Auto Kill Everyone", function(bool)
         end
     end
 end)
-switch:Set(false)
 
-game:GetService("Players").LocalPlayer.CharacterRemoving:Connect(function()
-    if _G.killAllConnection then
-        _G.killAllConnection:Disconnect()
-        _G.killAllConnection = nil
-    end
-end)
-
-game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function()
-    if _G.killAll and not _G.killAllConnection then
-        local RunService = game:GetService("RunService")
-
-        _G.killAllConnection = RunService.Heartbeat:Connect(function()
-            if _G.killAll then
-                for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-                    if player ~= game.Players.LocalPlayer and not isWhitelisted(player) then
-                        killPlayer(player)
-                    end
-                end
-            end
-        end)
-    end
-end)
-
-_G.deathRingEnabled = false
-_G.deathRingRange = 20
-_G.targetPlayer = nil
-_G.killPlayerEnabled = false
-_G.whitelistedPlayers = _G.whitelistedPlayers or {}
-
-local function findPlayerByName(name)
-    if not name or name == "" then return nil end
-
-    name = name:lower()
-    for _, player in pairs(game.Players:GetPlayers()) do
-        if player.Name:lower():find(name, 1, true) or player.DisplayName:lower():find(name, 1, true) then
-            return player
+-- Karma Kill Functions
+function equipTool(toolName)
+    local character = LocalPlayer.Character
+    local backpack = LocalPlayer.Backpack
+    if not (character and backpack) then return end
+    local tool = backpack:FindFirstChild(toolName)
+    if tool then
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:EquipTool(tool)
         end
     end
-    return nil
 end
-
-local button = Killing:AddButton("Remove Attack Animations", function()
-    local blockedAnimations = {
-        ["rbxassetid://3638729053"] = true,
-        ["rbxassetid://3638767427"] = true,
-    }
-
-    local function setupAnimationBlocking()
-        local char = game.Players.LocalPlayer.Character
-        if not char or not char:FindFirstChild("Humanoid") then return end
-
-        local humanoid = char:FindFirstChild("Humanoid")
-
-        for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
-            if track.Animation then
-                local animId = track.Animation.AnimationId
-                local animName = track.Name:lower()
-
-                if blockedAnimations[animId] or
-                    animName:match("punch") or
-                    animName:match("attack") or
-                    animName:match("right") then
-                    track:Stop()
-                end
-            end
-        end
-
-        if not _G.AnimBlockConnection then
-            local connection = humanoid.AnimationPlayed:Connect(function(track)
-                if track.Animation then
-                    local animId = track.Animation.AnimationId
-                    local animName = track.Name:lower()
-
-                    if blockedAnimations[animId] or
-                        animName:match("punch") or
-                        animName:match("attack") or
-                        animName:match("right") then
-                        track:Stop()
-                    end
-                end
-            end)
-
-            _G.AnimBlockConnection = connection
-        end
-    end
-
-    setupAnimationBlocking()
-
-    local function overrideToolActivation()
-        local function processTool(tool)
-            if tool and (tool.Name == "Punch" or tool.Name:match("Attack") or tool.Name:match("Right")) then
-                if not tool:GetAttribute("ActivatedOverride") then
-                    tool:SetAttribute("ActivatedOverride", true)
-
-                    local connection = tool.Activated:Connect(function()
-                        task.wait(0.05)
-
-                        local char = game.Players.LocalPlayer.Character
-                        if char and char:FindFirstChild("Humanoid") then
-                            for _, track in pairs(char.Humanoid:GetPlayingAnimationTracks()) do
-                                if track.Animation then
-                                    local animId = track.Animation.AnimationId
-                                    local animName = track.Name:lower()
-
-                                    if blockedAnimations[animId] or
-                                        animName:match("punch") or
-                                        animName:match("attack") or
-                                        animName:match("right") then
-                                        track:Stop()
-                                    end
-                                end
-                            end
-                        end
-                    end)
-
-                    if not _G.ToolConnections then
-                        _G.ToolConnections = {}
-                    end
-                    _G.ToolConnections[tool] = connection
-                end
-            end
-        end
-
-        for _, tool in pairs(game.Players.LocalPlayer.Backpack:GetChildren()) do
-            processTool(tool)
-        end
-
-        local char = game.Players.LocalPlayer.Character
-        if char then
-            for _, tool in pairs(char:GetChildren()) do
-                if tool:IsA("Tool") then
-                    processTool(tool)
-                end
-            end
-        end
-
-        if not _G.BackpackAddedConnection then
-            _G.BackpackAddedConnection = game.Players.LocalPlayer.Backpack.ChildAdded:Connect(function(child)
-                if child:IsA("Tool") then
-                    task.wait(0.1)
-                    processTool(child)
-                end
-            end)
-        end
-
-        if not _G.CharacterToolAddedConnection and char then
-            _G.CharacterToolAddedConnection = char.ChildAdded:Connect(function(child)
-                if child:IsA("Tool") then
-                    task.wait(0.1)
-                    processTool(child)
-                end
-            end)
-        end
-    end
-
-    overrideToolActivation()
-
-    if not _G.AnimMonitorConnection then
-        _G.AnimMonitorConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if tick() % 0.5 < 0.01 then
-                local char = game.Players.LocalPlayer.Character
-                if char and char:FindFirstChild("Humanoid") then
-                    for _, track in pairs(char.Humanoid:GetPlayingAnimationTracks()) do
-                        if track.Animation then
-                            local animId = track.Animation.AnimationId
-                            local animName = track.Name:lower()
-
-                            if blockedAnimations[animId] or
-                                animName:match("punch") or
-                                animName:match("attack") or
-                                animName:match("right") then
-                                track:Stop()
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end
-
-    if not _G.CharacterAddedConnection then
-        _G.CharacterAddedConnection = game.Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
-            task.wait(1)
-            setupAnimationBlocking()
-            overrideToolActivation()
-
-            if _G.CharacterToolAddedConnection then
-                _G.CharacterToolAddedConnection:Disconnect()
-            end
-
-            _G.CharacterToolAddedConnection = newChar.ChildAdded:Connect(function(child)
-                if child:IsA("Tool") then
-                    task.wait(0.1)
-                    processTool(child)
-                end
-            end)
-        end)
-    end
-end)
-
-local restoreButton = Killing:AddButton("Restore Punch Animation", function()
-    if _G.AnimBlockConnection then
-        _G.AnimBlockConnection:Disconnect()
-        _G.AnimBlockConnection = nil
-
-        local char = game.Players.LocalPlayer.Character
-        if char then
-            char:SetAttribute("AnimBlockConnection", false)
-        end
-    end
-
-    if _G.AnimMonitorConnection then
-        _G.AnimMonitorConnection:Disconnect()
-        _G.AnimMonitorConnection = nil
-    end
-
-    if _G.ToolConnections then
-        for tool, connection in pairs(_G.ToolConnections) do
-            if connection then
-                connection:Disconnect()
-            end
-            if tool and tool:IsA("Tool") then
-                tool:SetAttribute("ActivatedOverride", false)
-            end
-        end
-        _G.ToolConnections = {}
-    end
-end)
-
-Killing:AddSwitch("Good Karma Kill", function(state)
-    evilKarmaKill(state)
-    pcall(function()
-        Library:Notify("Good Karma Kill " .. (state and "Enabled" or "Disabled"), 2)
-    end)
-end)
 
 function evilKarmaKill(state)
     getgenv().killEvil = state
@@ -2000,13 +1981,6 @@ function evilKarmaKill(state)
     end
 end
 
-Killing:AddSwitch("Evil Karma Kill", function(state)
-    goodKarmaKill(state)
-    pcall(function()
-        Library:Notify("Evil Karma Kill " .. (state and "Enabled" or "Disabled"), 2)
-    end)
-end)
-
 function goodKarmaKill(state)
     getgenv().killGood = state
     if state then
@@ -2051,32 +2025,19 @@ function goodKarmaKill(state)
     end
 end
 
-function equipTool(toolName)
-    local character = LocalPlayer.Character
-    local backpack = LocalPlayer.Backpack
-    if not (character and backpack) then return end
-    local tool = backpack:FindFirstChild(toolName)
-    if tool then
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:EquipTool(tool)
-        end
-    end
-end
+Killing:AddSwitch("Good Karma Kill", function(state)
+    evilKarmaKill(state)
+end)
+
+Killing:AddSwitch("Evil Karma Kill", function(state)
+    goodKarmaKill(state)
+end)
 
 Killing:AddLabel("---Egg Obligatorio And Nan---")
 
 Killing:AddSwitch("Punch Death", function(value)
     allActive = value
 
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
-    local RunService = game:GetService("RunService")
-    local StarterPack = game:GetService("StarterPack")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local lighting = game:GetService("Lighting")
-
-    -- Limpia conexiones previas
     for _, conn in pairs(connections) do
         if conn and conn.Disconnect then
             conn:Disconnect()
@@ -2087,9 +2048,6 @@ Killing:AddSwitch("Punch Death", function(value)
     connections = {}
 
     if value then
-        print("✅ Activando todos los scripts")
-
-        -- Auto Punch
         _G.AutoPunchToggle = true
         spawn(function()
             local backpack = player:WaitForChild("Backpack")
@@ -2127,7 +2085,6 @@ Killing:AddSwitch("Punch Death", function(value)
             end
         end)
 
-        -- Auto Protein Egg
         _G.AutoProteinEgg = true
         local toolName = "Protein Egg"
         local character = player.Character or player.CharacterAdded:Wait()
@@ -2152,7 +2109,7 @@ Killing:AddSwitch("Punch Death", function(value)
 
         local function forceEquip(tool)
             if not (character and character:FindFirstChild("Humanoid")) then return end
-            local success, err = pcall(function()
+            safeCall(function()
                 character.Humanoid:EquipTool(tool)
             end)
             task.wait(0.1)
@@ -2216,12 +2173,10 @@ Killing:AddSwitch("Punch Death", function(value)
                 equipIfNeeded()
                 task.wait(0.5)
             end
-            print("Auto Protein Egg DESACTIVADO")
         end)
 
         -- Anti Fly
         getgenv().AntiFlyActive = true
-
         connections.AntiFly = RunService.Heartbeat:Connect(function()
             local char = player.Character
             if not char then return end
@@ -2244,11 +2199,7 @@ Killing:AddSwitch("Punch Death", function(value)
             end
         end)
 
-        print("🛡️ Anti-Fly ACTIVADO")
-
-        -- Anti Lag (simple ejecución sin desconexión)
-        print("✅ Anti-lag aplicado y cielo de atardecer activado.")
-
+        -- Anti Lag
         local function softAntiLag()
             local classesToClean = {
                 ["ParticleEmitter"] = true,
@@ -2261,7 +2212,7 @@ Killing:AddSwitch("Punch Death", function(value)
                 if obj:IsA("Model") or obj:IsA("Part") then
                     for _, sub in ipairs(obj:GetChildren()) do
                         if classesToClean[sub.ClassName] then
-                            pcall(function()
+                            safeCall(function()
                                 sub:Destroy()
                             end)
                         end
@@ -2278,6 +2229,7 @@ Killing:AddSwitch("Punch Death", function(value)
         end
 
         local function setSunsetSky()
+            local lighting = game:GetService("Lighting")
             lighting.ClockTime = 18
             lighting.Brightness = 1.5
             lighting.OutdoorAmbient = Color3.fromRGB(150, 100, 80)
@@ -2313,30 +2265,22 @@ Killing:AddSwitch("Punch Death", function(value)
             while allActive do
                 local shake = backpack:FindFirstChild("Tropical Shake")
                 if not shake then
-                    warn("✅ Ya no quedan Tropical Shakes en el inventario.")
                     break
                 end
 
-                warn("🕹 Encontrada Tropical Shake:", shake, "- equipando...")
                 shake.Parent = player.Character
                 RunService.Heartbeat:Wait()
 
                 if shake.Activate then
                     shake:Activate()
-                    warn("🍹 Activada Tropical Shake:", shake)
                 elseif mouse1click then
                     mouse1click()
-                    warn("🍹 mouse1click() sobre Tropical Shake")
-                else
-                    warn("⚠️ No se pudo activar Tropical Shake: no hay Activate() ni mouse1click()")
                 end
 
                 task.wait(0.1)
             end
         end)
     else
-        print("🛑 Desactivando todos los scripts")
-
         _G.AutoPunchToggle = false
         _G.AutoProteinEgg = false
         getgenv().AntiFlyActive = false
@@ -2345,17 +2289,22 @@ Killing:AddSwitch("Punch Death", function(value)
             connections.AntiFly:Disconnect()
             connections.AntiFly = nil
         end
-
-        -- No hay lógica para revertir AntiLag ni AutoTropicalShake,
-        -- podrías agregarla si quieres.
-
     end
 end)
 
-local ttleLabel = Killing:AddLabel("Kill Aura ")
-ttleLabel.TextSize = 24
-ttleLabel.Font = Enum.Font.Merriweather 
-ttleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+-- Death Ring and Kill Aura
+Killing:AddLabel("---Kill Aura---")
+
+local function findPlayerByName(name)
+    if not name or name == "" then return nil end
+    name = name:lower()
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Name:lower():find(name, 1, true) or player.DisplayName:lower():find(name, 1, true) then
+            return player
+        end
+    end
+    return nil
+end
 
 Killing:AddTextBox("Range (1-140)", function(text)
     local range = tonumber(text)
@@ -2365,13 +2314,11 @@ Killing:AddTextBox("Range (1-140)", function(text)
     end
 end)
 
-local deathRingSwitch = Killing:AddSwitch("Death Ring", function(bool)
+Killing:AddSwitch("Death Ring", function(bool)
     _G.deathRingEnabled = bool
 
     if bool then
         if not _G.deathRingConnection then
-            local RunService = game:GetService("RunService")
-
             _G.deathRingConnection = RunService.Heartbeat:Connect(function()
                 if not _G.deathRingEnabled then return end
 
@@ -2382,6 +2329,7 @@ local deathRingSwitch = Killing:AddSwitch("Death Ring", function(bool)
 
                 for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
                     if player == game.Players.LocalPlayer or isWhitelisted(player) then
+                        continue                        
                     end
 
                     if isPlayerAlive(player) then
@@ -2402,7 +2350,6 @@ local deathRingSwitch = Killing:AddSwitch("Death Ring", function(bool)
         end
     end
 end)
-deathRingSwitch:Set(false)
 
 Killing:AddTextBox("Player Name (Optional)", function(text)
     if text and text ~= "" then
@@ -2417,13 +2364,11 @@ Killing:AddTextBox("Player Name (Optional)", function(text)
     end
 end)
 
-local killPlayerSwitch = Killing:AddSwitch("Kill Player", function(bool)
+Killing:AddSwitch("Kill Player", function(bool)
     _G.killPlayerEnabled = bool
 
     if bool then
         if not _G.killPlayerConnection then
-            local RunService = game:GetService("RunService")
-
             _G.killPlayerConnection = RunService.Heartbeat:Connect(function()
                 if _G.killPlayerEnabled and _G.targetPlayer and isPlayerAlive(_G.targetPlayer) then
                     killPlayer(_G.targetPlayer)
@@ -2437,25 +2382,77 @@ local killPlayerSwitch = Killing:AddSwitch("Kill Player", function(bool)
         end
     end
 end)
-killPlayerSwitch:Set(false)
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+-- Animation removal
+Killing:AddButton("Remove Attack Animations", function()
+    local blockedAnimations = {
+        ["rbxassetid://3638729053"] = true,
+        ["rbxassetid://3638767427"] = true,
+    }
 
+    local function setupAnimationBlocking()
+        local char = game.Players.LocalPlayer.Character
+        if not char or not char:FindFirstChild("Humanoid") then return end
+
+        local humanoid = char:FindFirstChild("Humanoid")
+
+        for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+            if track.Animation then
+                local animId = track.Animation.AnimationId
+                local animName = track.Name:lower()
+
+                if blockedAnimations[animId] or
+                    animName:match("punch") or
+                    animName:match("attack") or
+                    animName:match("right") then
+                    track:Stop()
+                end
+            end
+        end
+
+        if not _G.AnimBlockConnection then
+            _G.AnimBlockConnection = humanoid.AnimationPlayed:Connect(function(track)
+                if track.Animation then
+                    local animId = track.Animation.AnimationId
+                    local animName = track.Name:lower()
+
+                    if blockedAnimations[animId] or
+                        animName:match("punch") or
+                        animName:match("attack") or
+                        animName:match("right") then
+                        track:Stop()
+                    end
+                end
+            end)
+        end
+    end
+
+    setupAnimationBlocking()
+
+    if not _G.CharacterAddedConnection then
+        _G.CharacterAddedConnection = game.Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
+            task.wait(1)
+            setupAnimationBlocking()
+        end)
+    end
+end)
+
+Killing:AddButton("Restore Punch Animation", function()
+    if _G.AnimBlockConnection then
+        _G.AnimBlockConnection:Disconnect()
+        _G.AnimBlockConnection = nil
+    end
+
+    if _G.CharacterAddedConnection then
+        _G.CharacterAddedConnection:Disconnect()
+        _G.CharacterAddedConnection = nil
+    end
+end)
+
+-- Spectate Player
 local spectatingPlayer = nil
 local spectateConnection = nil
 local spectateName = ""
-
-local function findPlayerByPartialName(name)
-    if not name or name == "" then return nil end
-    name = name:lower()
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Name:lower():find(name, 1, true) or plr.DisplayName:lower():find(name, 1, true) then
-            return plr
-        end
-    end
-    return nil
-end
 
 local function startSpectating(player)
     if not player or not player.Character then return end
@@ -2486,45 +2483,26 @@ local function stopSpectating()
         spectateConnection:Disconnect()
         spectateConnection = nil
     end
-    -- NO ponemos la cámara en el localplayer aquí para mantener el espectate activo
 end
 
--- UI: TextBox para nombre jugador
 Killing:AddTextBox("Player to Spectate", function(text)
     spectateName = text
 end)
 
 local spectateSwitch = Killing:AddSwitch("Spectate Player", function(enabled)
     if enabled then
-        local player = findPlayerByPartialName(spectateName)
+        local player = findPlayerByName(spectateName)
         if player then
             startSpectating(player)
         else
-            warn("Jugador no encontrado: " .. tostring(spectateName))
             spectateSwitch:Set(false)
         end
     else
         stopSpectating()
     end
 end)
-spectateSwitch:Set(false)
 
--- Mantener espectate activo al reaparecer, SIN cambiar la cámara al localplayer
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    if spectateSwitch:Get() and spectateName ~= "" then
-        local player = findPlayerByPartialName(spectateName)
-        if player then
-            startSpectating(player)
-        else
-            warn("Jugador no encontrado al reaparecer: " .. tostring(spectateName))
-            spectateSwitch:Set(false)
-            stopSpectating()
-        end
-    end
-    -- Aquí NO ponemos la cámara en el localplayer para no interrumpir el espectate
-end)
-
+-- Status Labels
 local whitelistTitle = Killing:AddLabel("Whitelisted players:")
 local whitelistLabel = Killing:AddLabel("None")
 local targetTitle = Killing:AddLabel("Target Player:")
@@ -2578,72 +2556,141 @@ spawn(function()
     end
 end)
 
+-- ============================================================================
+-- TELEPORT TAB
+-- ============================================================================
+
 local function teleportTo(position)
-    local player = game.Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()
-    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-    humanoidRootPart.CFrame = position
+    safeCall(function()
+        local player = game.Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+        humanoidRootPart.CFrame = position
+    end)
 end
 
-Teleport:AddButton("Spawn", function()
-    teleportTo(CFrame.new(2, 8, 115))
+local teleportButtons = {
+    {"Spawn", CFrame.new(2, 8, 115)},
+    {"Secret Area", CFrame.new(1947, 2, 6191)},
+    {"Tiny Area", CFrame.new(-34, 7, 1903)},
+    {"Frozen", CFrame.new(-2600.00244, 3.67686558, -403.884369, 0.0873617008, 1.0482899e-09, 0.99617666, 3.07204253e-08, 1, -3.7464023e-09, -0.99617666, 3.09302628e-08, 0.0873617008)},
+    {"Mythical", CFrame.new(2255, 7, 1071)},
+    {"Inferno", CFrame.new(-6768, 7, -1287)},
+    {"Legend", CFrame.new(4604, 991, -3887)},
+    {"Muscle King", CFrame.new(-8646, 17, -5738)},
+    {"Jungle", CFrame.new(-8659, 6, 2384)},
+    {"Lava Brawl", CFrame.new(4471, 119, -8836)},
+    {"Desert Brawl", CFrame.new(960, 17, -7398)},
+    {"Beach Brawl", CFrame.new(-1849, 20, -6335)}
+}
+
+for _, buttonData in pairs(teleportButtons) do
+    Teleport:AddButton(buttonData[1], function()
+        teleportTo(buttonData[2])
+    end)
+end
+
+-- ============================================================================
+-- CREDITS TAB
+-- ============================================================================
+
+local credits = {
+    "╭──────────────────────────╮",
+    "   Script hecho por Isabella",
+    "╰──────────────────────────╯",
+    "",
+    "User de Roblox: MissSherya",
+    "Instagram: Sherya_Luck",
+    "TikTok: Sherya6000",
+    "Discord: isabella_hrz",
+    "",
+    "Thanks por usar el script",
+    "",
+    "Recomienda el script para hacer mas actualizaciones",
+    "Hago peticiones de otros juegos",
+    "Diviertete amiguito"
+}
+
+for _, credit in pairs(credits) do
+    creditsTab:AddLabel(credit)
+end
+
+creditsTab:AddButton("Servidor Discord", function()
+    setclipboard("https://discord.gg/Wr9abVw3UR")
 end)
 
-Teleport:AddButton("Secret Area", function()
-    teleportTo(CFrame.new(1947, 2, 6191))
+-- ============================================================================
+-- AUTO SETUP AND ANTI-AFK
+-- ============================================================================
+
+-- Auto Anti-AFK
+local function setupAntiAFK()
+    local GC = getconnections or get_signal_cons
+    if GC then
+        for i, v in pairs(GC(game.Players.LocalPlayer.Idled)) do
+            if v["Disable"] then
+                v["Disable"](v)
+            elseif v["Disconnect"] then
+                v["Disconnect"](v)
+            end
+        end
+    else
+        VirtualUser = game:GetService("VirtualUser")
+        game:GetService("Players").LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end
+
+setupAntiAFK()
+
+-- Remove Portals
+local function removePortals()
+    for _, portal in pairs(game:GetDescendants()) do
+        if portal.Name == "RobloxForwardPortals" then
+            portal:Destroy()
+        end
+    end
+    if _G.AdRemovalConnection then
+        _G.AdRemovalConnection:Disconnect()
+    end
+    _G.AdRemovalConnection = game.DescendantAdded:Connect(function(descendant)
+        if descendant.Name == "RobloxForwardPortals" then
+            descendant:Destroy()
+        end
+    end)
+end
+
+removePortals()
+
+-- Player respawn handling
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    if spectateSwitch and spectateSwitch:Get() and spectateName ~= "" then
+        local player = findPlayerByName(spectateName)
+        if player then
+            startSpectating(player)
+        else
+            spectateSwitch:Set(false)
+            stopSpectating()
+        end
+    end
 end)
 
-Teleport:AddButton("Tiny Area", function()
-    teleportTo(CFrame.new(-34, 7, 1903))
+-- Friend whitelist handling
+game.Players.PlayerAdded:Connect(function(player)
+    if _G.whitelistFriends and player:IsFriendsWith(game.Players.LocalPlayer.UserId) then
+        local playerName = player.Name
+        local alreadyWhitelisted = false
+        for _, name in ipairs(_G.whitelistedPlayers) do
+            if name:lower() == playerName:lower() then
+                alreadyWhitelisted = true
+                break
+            end
+        end
+        if not alreadyWhitelisted then
+            table.insert(_G.whitelistedPlayers, playerName)
+        end
+    end
 end)
-
-Teleport:AddButton("Frozen", function()
-    teleportTo(CFrame.new(-2600.00244, 3.67686558, -403.884369, 0.0873617008, 1.0482899e-09, 0.99617666, 3.07204253e-08, 1, -3.7464023e-09, -0.99617666, 3.09302628e-08, 0.0873617008))
-end)
-
-Teleport:AddButton("Mythical", function()
-    teleportTo(CFrame.new(2255, 7, 1071))
-end)
-
-Teleport:AddButton("Inferno", function()
-    teleportTo(CFrame.new(-6768, 7, -1287))
-end)
-
-Teleport:AddButton("Legend", function()
-    teleportTo(CFrame.new(4604, 991, -3887))
-end)
-
-Teleport:AddButton("Muscle King", function()
-    teleportTo(CFrame.new(-8646, 17, -5738))
-end)
-
-Teleport:AddButton("Jungle", function()
-    teleportTo(CFrame.new(-8659, 6, 2384))
-end)
-
-Teleport:AddButton("Lava Brawl", function()
-    teleportTo(CFrame.new(4471, 119, -8836))
-end)
-
-Teleport:AddButton("Desert Brawl", function()
-    teleportTo(CFrame.new(960, 17, -7398))
-end)
-
-Teleport:AddButton("Beach Brawl", function()
-    teleportTo(CFrame.new(-1849, 20, -6335))
-end)
-
-creditsTab:AddLabel("╭──────────────────────────╮")
-creditsTab:AddLabel("   Script hecho por Isabella")
-creditsTab:AddLabel("╰──────────────────────────╯")
-
-creditsTab:AddLabel("User de Roblox: MissSherya")
-creditsTab:AddLabel("Instagram: Sherya_Luck")
-creditsTab:AddLabel("TikTok: Sherya6000")
-creditsTab:AddLabel("Discord: isabella_hrz")
-
-creditsTab:AddLabel("Thanks por usar el script ")
-
-creditsTab:AddLabel("Recomienda el script para hacer mas actualizaciones")
-creditsTab:AddLabel("Hago peticiones de otros juegos")
-creditsTab:AddLabel("Diviertete amiguito")
